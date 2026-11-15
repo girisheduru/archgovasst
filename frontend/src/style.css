@@ -1,15 +1,107 @@
-body {
-  display: grid;
-  min-height: 100vh;
-  margin: 0;
-  place-items: center;
-  background: #f4f7fb;
-  color: #17233b;
+:root {
+  color: #182832;
+  background: #f5f7f5;
   font-family: Inter, system-ui, sans-serif;
+  line-height: 1.55;
+}
+
+* { box-sizing: border-box; }
+body, h1, h2, h3, p { margin: 0; }
+a { color: inherit; }
+a:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
+
+.shell {
+  width: min(100% - 3rem, 70rem);
+  margin-inline: auto;
+}
+
+.site-header {
+  background: #fff;
+  border-bottom: 1px solid #e0e8e3;
+}
+
+.header-content, nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.header-content {
+  min-height: 4.5rem;
+  justify-content: space-between;
+}
+
+.brand { color: #133c38; font-weight: 750; }
+nav { font-size: .9rem; }
+.site-header a { text-decoration: none; }
+.site-header a:hover { text-decoration: underline; }
+
+.hero {
+  color: #fff;
+  background: radial-gradient(ellipse at 90% 10%, #24594f, transparent 65%), #132f32;
+}
+
+.hero-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(2rem, 6vw, 5rem);
+  padding-block: clamp(3rem, 8vw, 6rem);
 }
 
 h1 {
-  margin: 0;
-  font-size: clamp(2.5rem, 8vw, 5rem);
-  letter-spacing: -0.05em;
+  max-width: 12ch;
+  font-size: clamp(2.25rem, 6vw, 4.8rem);
+  line-height: 1.03;
+  letter-spacing: -.055em;
+}
+
+.hero p { max-width: 47ch; margin-block: 1.25rem 1.75rem; color: #d4e7e1; }
+
+.primary-link {
+  display: inline-flex;
+  gap: .75rem;
+  padding: .7rem 1rem;
+  border-radius: .55rem;
+  background: #adf4d1;
+  color: #133c38;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.primary-link:hover { background: #cefae4; }
+
+.review-brief {
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid #629185;
+  border-radius: 1rem;
+  background: #173b38;
+}
+
+.review-brief h2 { font-size: 1.2rem; }
+.review-brief ul { margin: .85rem 0 0; padding-left: 1.25rem; color: #d4e7e1; }
+.review-brief li + li { margin-top: .65rem; }
+.review-brief li::marker { color: #adf4d1; }
+
+.review-section { padding-block: 2.5rem 4rem; }
+.review-section h2 { margin-bottom: 1.15rem; font-size: 1.8rem; }
+.review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+
+.review-card {
+  padding: 1.4rem;
+  border: 1px solid #dce6df;
+  border-top: 3px solid #569d84;
+  border-radius: .85rem;
+  background: #fff;
+}
+
+.review-card h3 { font-size: 1.12rem; }
+.review-card p { margin-top: .4rem; color: #465a62; }
+
+@media (max-width: 45rem) {
+  .hero-content, .review-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 24rem) {
+  .header-content { flex-wrap: wrap; padding-block: .8rem; }
 }
