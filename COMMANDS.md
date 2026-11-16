@@ -49,8 +49,8 @@ If Railway reports that `/backend` only contains `.gitkeep`, check that its sour
 
 | Command | What it does |
 | --- | --- |
-| `git add -- backend/main.py backend/requirements.txt` | Stages the FastAPI entry point and dependencies. |
-| `git commit -m 'Add FastAPI backend' -- backend/main.py backend/requirements.txt` | Commits only the two backend files. |
+| `git add -- backend/main.py backend/governance backend/requirements.txt` | Stages the FastAPI entry point, application package, and dependencies. |
+| `git commit -m 'Add FastAPI backend' -- backend/main.py backend/governance backend/requirements.txt` | Commits the backend runtime files. |
 | `git push origin main` | Publishes the commit to the GitHub branch connected to Railway. |
 
 1. Configure the Railway backend service with `/backend` as its root directory. Set the start command to `uvicorn main:app --host 0.0.0.0 --port "$PORT"`. Railway provides `PORT`. Generate a public HTTPS domain under Networking.
