@@ -26,7 +26,7 @@ class Extraction(BaseModel):
 
 
 def extract(state: State):
-    model = getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    model = getenv("OPENAI_MODEL", "gpt-6.1-luna")
     response_input = {
         "rules": [
             {

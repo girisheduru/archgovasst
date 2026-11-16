@@ -37,7 +37,7 @@ curl http://127.0.0.1:8000/api/reviews/sample
 
 ## Configure document reviews
 
-Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. `OPENAI_MODEL` defaults to `gpt-4.1-mini` and accepts models that support Structured Outputs. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.
+Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. Document reviews default to `gpt-6.1-luna` when `OPENAI_MODEL` is unset. Set `OPENAI_MODEL` to override the default with a model that supports Structured Outputs and is available to your API project. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.
 
 The [standards folder](standards/README.md) contains the four source Word documents and the 26-rule Chroma import catalog. A catalog is a JSON array with one entry per approved rule and effective date. Use a globally unique ID per rule. This example is fictional.
 
