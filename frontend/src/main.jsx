@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { createRoot } from 'react-dom/client';
+import DocumentReview from './components/DocumentReview.jsx';
+import SampleReview from './components/SampleReview.jsx';
 import './style.css';
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+$/, '');
@@ -19,54 +21,6 @@ const reviewAreas = [
   },
 ];
 
-function SampleReview() {
-  const [review, setReview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  async function loadReview() {
-    setLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/reviews/sample`, {
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      const sample = await response.json();
-      setReview(sample);
-    } catch {
-      setError('Could not load the sample review. Check that the backend is running and try again.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <section className="shell sample-section" aria-labelledby="sample-title">
-      <div className="sample-header">
-        <h2 id="sample-title">Sample architecture review</h2>
-        <button className="primary-link" type="button" onClick={loadReview} disabled={loading}>
-          {review ? 'Load another sample' : 'Load sample review'}
-        </button>
-      </div>
-      <div role="status">{loading ? 'Loading sample review…' : review && !error ? `Showing sample review for ${review.system_name}.` : ''}</div>
-      {error && <p className="sample-error" role="alert">{error}</p>}
-      {review && (
-        <div className="review-grid sample-results">
-          {review.review_areas.map(({ title, finding, next_step }) => (
-            <article className="review-card" key={title}>
-              <h3>{title}</h3>
-              <p>{finding}</p>
-              <p><strong>Next step</strong> {next_step}</p>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function App() {
   return (
     <>
@@ -74,7 +28,7 @@ function App() {
         <div className="shell header-content">
           <a className="brand" href="./">AIArchGovAsst</a>
           <nav aria-label="Main navigation">
-            <a href="#review-areas">Review areas</a>
+            <a href="#document-review">Document review</a>
             <a href="https://github.com/girisheduru/archgovasst">GitHub ↗</a>
           </nav>
         </div>
@@ -85,7 +39,7 @@ function App() {
             <div>
               <h1 id="page-title">Architecture governance for AI systems</h1>
               <p>Prepare AI architecture proposals for review. Capture design decisions, surface risks, and give reviewers the information they need to make a decision.</p>
-              <a className="primary-link" href="#review-areas">Explore review areas <span aria-hidden="true">↓</span></a>
+              <a className="primary-link" href="#document-review">Start a document review <span aria-hidden="true">↓</span></a>
             </div>
             <aside className="review-brief" aria-labelledby="brief-title">
               <h2 id="brief-title">What to bring to a review</h2>
@@ -98,6 +52,7 @@ function App() {
             </aside>
           </div>
         </section>
+        <DocumentReview apiBaseUrl={apiBaseUrl} />
         <section id="review-areas" className="shell review-section" aria-labelledby="areas-title">
           <h2 id="areas-title">Review areas</h2>
           <div className="review-grid">
@@ -109,7 +64,7 @@ function App() {
             ))}
           </div>
         </section>
-        <SampleReview />
+        <SampleReview apiBaseUrl={apiBaseUrl} />
       </main>
     </>
   );

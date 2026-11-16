@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
 from os import getenv
+from threading import Lock
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langgraph.checkpoint.memory import InMemorySaver
 from starlette.concurrency import run_in_threadpool
 
-from . import reviews
-from .tracing import configure_arize
+from .agent.graph import compile_workflow
+from .api import document_reviews, sample_reviews
+from .api.tracing import configure_arize
 
 
 @asynccontextmanager
@@ -16,6 +19,10 @@ async def lifespan(app: FastAPI):
         app.state.tracer = (
             tracer_provider.get_tracer("archgovasst") if tracer_provider else None
         )
+        checkpointer = InMemorySaver()
+        app.state.checkpointer = checkpointer
+        app.state.workflow = compile_workflow(checkpointer)
+        app.state.decision_lock = Lock()
         yield
     finally:
         if tracer_provider is not None:
@@ -28,5 +35,14 @@ allowed_origins = [
     for origin in getenv("CORS_ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
-app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_methods=["GET"])
-app.include_router(reviews.router)
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_methods=["GET", "POST"])
+app.include_router(sample_reviews.router)
+app.include_router(document_reviews.router)
+
+
+@app.middleware("http")
+async def prevent_review_caching(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/reviews"):
+        response.headers["Cache-Control"] = "no-store"
+    return response

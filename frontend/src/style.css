@@ -112,3 +112,33 @@ h1 {
 @media (max-width: 24rem) {
   .header-content { flex-wrap: wrap; padding-block: .8rem; }
 }
+
+.review-form { display: grid; gap: 1rem; margin: 1rem 0; }
+.review-form label { display: grid; gap: .4rem; font-weight: 600; }
+.review-form :is(input, select, textarea) {
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+  min-width: 0;
+  width: 100%;
+  padding: .55rem;
+  border: 1px solid #87919d;
+  border-radius: .35rem;
+  background: #fff;
+}
+.review-form .primary-link { justify-self: start; }
+.review-fields { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); }
+.field-hint { margin: -.6rem 0 0; }
+.findings { display: grid; gap: .75rem; margin: 1rem 0; }
+.findings p { overflow-wrap: anywhere; }
+.review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
+.review-actions button:not(.primary-link) {
+  cursor: pointer;
+  font: inherit;
+  padding: .55rem .8rem;
+  border: 1px solid #87919d;
+  border-radius: .35rem;
+  background: #fff;
+}
+.review-actions button:disabled, .review-form button:disabled { cursor: wait; opacity: .65; }
+.decision-history li { margin: .5rem 0; }

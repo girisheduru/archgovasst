@@ -28,6 +28,15 @@ Run these commands from the clone root with Python 3.11 or newer. The setup comm
 
 Open [the interactive API docs](http://127.0.0.1:8000/docs) while the server is running.
 
+## Import standards and evaluate a review
+
+From the clone root, install the backend dependencies and configure Chroma before running these commands. Import and optional judging also require `OPENAI_API_KEY` in the shell environment. See the [backend guide](backend/README.md) for file formats.
+
+| Command | What it does |
+| --- | --- |
+| `.venv/bin/python -m backend.governance.standards backend/standards/rules.json` | Loads the repo's 26-rule catalog into Chroma, one record per rule version. |
+| `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores an exported report against its source document and human answer key. Append `--judge` for OpenAI scoring. |
+
 ## Run the sample review backend
 
 Run these commands from the clone root. The backend uses Python 3.11 in the local setup. Use a second terminal for the Vite development server.

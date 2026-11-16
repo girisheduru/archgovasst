@@ -1,0 +1,60 @@
+"""Run an evidence review with two human checkpoints."""
+
+from datetime import UTC, datetime
+
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
+
+from ..standards_store.catalog import load_rules
+from .evidence import extract
+from .policy import check
+from .state import State
+
+
+def prepare(state: State):
+    return {"rules": load_rules(datetime.fromisoformat(state["as_of"]).date(), state["document_type"])}
+
+
+def audit(state: State, checkpoint: str, decision: dict):
+    return [
+        *state.get("audit", []),
+        {"checkpoint": checkpoint, **decision, "at": datetime.now(UTC).isoformat()},
+    ]
+
+
+def confirm(state: State):
+    decision = interrupt({"checkpoint": "confirm_evidence"})
+    return {
+        "stage": "rejected" if decision["decision"] == "reject" else "confirmed",
+        "audit": audit(state, "confirm_evidence", decision),
+    }
+
+
+def report(_state: State):
+    return {"stage": "approve_report"}
+
+
+def approve(state: State):
+    decision = interrupt({"checkpoint": "approve_report"})
+    return {
+        "stage": "approved" if decision["decision"] == "approve" else "rejected",
+        "audit": audit(state, "approve_report", decision),
+    }
+
+
+def after_confirmation(state: State):
+    return "rejected" if state["stage"] == "rejected" else "confirmed"
+
+
+def compile_workflow(checkpointer):
+    graph = StateGraph(State)
+    for node in (prepare, extract, confirm, check, report, approve):
+        graph.add_node(node.__name__, node)
+    graph.add_edge(START, "prepare")
+    graph.add_edge("prepare", "extract")
+    graph.add_edge("extract", "confirm")
+    graph.add_conditional_edges("confirm", after_confirmation, {"confirmed": "check", "rejected": END})
+    graph.add_edge("check", "report")
+    graph.add_edge("report", "approve")
+    graph.add_edge("approve", END)
+    return graph.compile(checkpointer=checkpointer)
