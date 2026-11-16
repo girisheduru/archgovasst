@@ -98,6 +98,13 @@ h1 {
 .review-card h3 { font-size: 1.12rem; }
 .review-card p { margin-top: .4rem; color: #465a62; }
 
+.sample-section { border-top: 1px solid #dce6df; padding-block: 2rem 4rem; }
+.sample-header { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: .75rem; }
+.sample-header button { border: 0; font: inherit; font-weight: 700; cursor: pointer; }
+.sample-header button:disabled { opacity: .65; cursor: wait; }
+.sample-results { margin-top: 1rem; }
+.sample-error { color: #a12424; }
+
 @media (max-width: 45rem) {
   .hero-content, .review-grid { grid-template-columns: 1fr; }
 }
