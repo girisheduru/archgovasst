@@ -5,14 +5,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
-from . import health, reviews
-from .chroma import connect_chroma
+from . import reviews
 from .tracing import configure_arize
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.chroma = await run_in_threadpool(connect_chroma)
     tracer_provider = configure_arize()
     try:
         app.state.tracer = (
@@ -31,5 +29,4 @@ allowed_origins = [
     if origin.strip()
 ]
 app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_methods=["GET"])
-app.include_router(health.router)
 app.include_router(reviews.router)

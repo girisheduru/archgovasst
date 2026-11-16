@@ -7,7 +7,6 @@ The FastAPI service provides fictional architecture reviews for the [React front
 - [`main.py`](main.py) exposes the Uvicorn entry point.
 - [`governance/application.py`](governance/application.py) configures FastAPI, CORS, and startup and shutdown.
 - [`governance/reviews.py`](governance/reviews.py) defines the sample review route and response models.
-- [`governance/health.py`](governance/health.py) defines the Chroma health check.
 - [`governance/chroma.py`](governance/chroma.py) and [`governance/tracing.py`](governance/tracing.py) configure the Chroma client and Arize tracing.
 
 ## Run locally
@@ -65,9 +64,9 @@ CHROMA_PRIVATE_HOST=${{Chroma.RAILWAY_PRIVATE_DOMAIN}}
 CHROMA_PORT=8000
 ```
 
-Use Railway's variable autocomplete to select the actual Chroma service, or paste its private hostname from **Settings → Networking**. The backend builds the private HTTP URL from these values. Clear `CHROMA_URL` and `CHROMA_API_KEY` when switching to `CHROMA_PRIVATE_HOST`. The backend creates the Chroma client at startup, so an unreachable server can prevent startup. See [Railway private domains](https://docs.railway.com/networking/domains/working-with-domains#private-domains).
+Use Railway's variable autocomplete to select the actual Chroma service, or paste its private hostname from **Settings → Networking**. The backend builds the private HTTP URL from these values. Clear `CHROMA_URL` and `CHROMA_API_KEY` when switching to `CHROMA_PRIVATE_HOST`. See [Railway private domains](https://docs.railway.com/networking/domains/working-with-domains#private-domains).
 
-Use `GET /api/health/chroma` in the FastAPI docs to verify database access. It returns `connected` on a successful read and `disabled` if Chroma is unconfigured. A read failure after startup returns HTTP 503. The sample review continues to generate fictional findings in memory.
+Keep the Chroma service on Railway's private network. The Chroma client helper is available for future backend features. FastAPI startup and sample reviews run independently of Chroma.
 
 Call `GET /api/reviews/sample` and look for the `generate_sample_review` span in the Arize project. The span records timing and status. The trace does not include the response body or request headers. See [Arize AX tracing setup](https://arize.com/docs/ax/observe/tracing/setup/manual-instrumentation) and the [Chroma client reference](https://docs.trychroma.com/reference/python/client).
 
