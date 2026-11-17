@@ -18,7 +18,9 @@ Select **Start a document review** on the homepage or **Document review** in the
 
 ## Upload standards
 
-Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. Use the [bundled standards format](../backend/standards/README.md). The form shows how many rule versions were added and how many were already present. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. It stores the rule records in Chroma.
+Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. The form shows how many rule versions were added and how many were overwritten. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. Use the [bundled standards format](../backend/standards/README.md).
+
+Chroma overwrites a stored rule when the uploaded rule has the same ID and **Effective date**. Include each rule version once per upload.
 
 ## Run locally
 

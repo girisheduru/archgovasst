@@ -1,4 +1,5 @@
 from hmac import compare_digest
+from logging import getLogger
 from os import getenv
 from pathlib import Path
 from threading import Lock
@@ -8,12 +9,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..agent.documents import MAX_UPLOAD_BYTES
-from ..standards_store.ingestion import ingest_rules
+from ..standards_store.ingestion import InvalidImport, ingest_rules
 from ..standards_store.source_documents import extract_rules
 
 router = APIRouter(prefix="/api/standards", tags=["Standards"])
 bearer = HTTPBearer(auto_error=False)
 import_lock = Lock()
+logger = getLogger(__name__)
 
 
 def authorize_import(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]):
@@ -49,10 +51,11 @@ def import_standards(
 
     try:
         with import_lock:
-            added = ingest_rules(rules)
-    except ValueError as exc:
-        raise HTTPException(409, str(exc)) from exc
+            added, updated = ingest_rules(rules)
+    except InvalidImport as exc:
+        raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
+        logger.error("Standards import failed (%s).", type(exc).__name__)
         raise HTTPException(503, "Could not import standards. Check the backend embedding and Chroma settings.") from exc
 
-    return {"added": added, "unchanged": len(rules) - added}
+    return {"added": added, "updated": updated}

@@ -38,7 +38,7 @@ export default function StandardsUpload({ apiBaseUrl }) {
   return (
     <section className="shell review-section" aria-labelledby="standards-title">
       <h1 id="standards-title">Upload governance standards</h1>
-      <p>Upload approved Word standards to import their rules.</p>
+      <p>Upload approved Word standards. Rules with matching IDs and effective dates are overwritten.</p>
       <form className="review-form" onSubmit={upload}>
         <label>
           Source standards documents
@@ -52,7 +52,7 @@ export default function StandardsUpload({ apiBaseUrl }) {
       </form>
       <div role="status">
         {busy && 'Checking documents and importing rules…'}
-        {result && `Rule versions added: ${result.added}. Already present: ${result.unchanged}.`}
+        {result && `Rule versions added: ${result.added}. Overwritten: ${result.updated}.`}
       </div>
       {error && <p className="sample-error" role="alert">{error}</p>}
     </section>

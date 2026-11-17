@@ -20,7 +20,7 @@ if __name__ == "__main__":
             if len(payload) > MAX_UPLOAD_BYTES:
                 raise ValueError(f"{path}: source documents must be at most 10 MB.")
             rules.extend(extract_rules(path.name, payload))
-        added = ingest_rules(rules)
+        added, updated = ingest_rules(rules)
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
-    print(f"Added {added} rule versions. Already present: {len(rules) - added}.")
+    print(f"Added {added} rule versions. Overwritten: {updated}.")

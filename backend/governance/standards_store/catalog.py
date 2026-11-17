@@ -1,10 +1,13 @@
 """Resolve the approved, effective rule versions for a review."""
 
 from datetime import date
+from logging import getLogger
 from os import getenv
 
 from .chroma import connect_chroma
 from .models import DocumentType, Rule
+
+logger = getLogger(__name__)
 
 
 class StandardsUnavailable(RuntimeError):
@@ -23,12 +26,17 @@ def collection_name():
 
 
 def load_rules(as_of: date, document_type: DocumentType) -> list[dict]:
+    step = "connect to Chroma"
     try:
-        collection = standards_client().get_collection(collection_name(), embedding_function=None)
+        client = standards_client()
+        step = "open the collection"
+        collection = client.get_collection(collection_name(), embedding_function=None)
+        step = "query rule versions"
         rows = collection.get(
             where={"effective_date": {"$lte": as_of.toordinal()}},
             include=["documents"],
         )
+        step = "validate stored rules"
         latest: dict[str, Rule] = {}
         for document in rows["documents"] or []:
             rule = Rule.model_validate_json(document)
@@ -38,6 +46,7 @@ def load_rules(as_of: date, document_type: DocumentType) -> list[dict]:
     except StandardsUnavailable:
         raise
     except Exception as exc:
+        logger.error("Standards read failed at step '%s' (%s).", step, type(exc).__name__)
         raise StandardsUnavailable("Could not read the approved standards collection.") from exc
 
     applicable = [rule for rule in latest.values() if document_type in rule.document_types]

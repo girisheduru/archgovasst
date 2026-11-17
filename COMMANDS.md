@@ -34,7 +34,7 @@ From the clone root, install the backend dependencies and configure Chroma befor
 
 | Command | What it does |
 | --- | --- |
-| `.venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx` | Imports 26 rules from the bundled Word standards into Chroma, one record per rule version. Requires backend dependencies, an OpenAI API key, and a Chroma connection. |
+| `.venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx` | Imports 26 rules from the bundled Word standards into Chroma and overwrites records with matching rule IDs and effective dates. Requires backend dependencies, an OpenAI API key, and a Chroma connection. |
 | `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores an exported report against its source document and human answer key. Append `--judge` for OpenAI scoring. |
 
 ## Run the sample review backend
