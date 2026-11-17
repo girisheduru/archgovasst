@@ -25,7 +25,7 @@ JUDGE_INSTRUCTIONS = (
 
 def judge(review: dict, key: AnswerKey, sections: dict):
     judgment = parse_response(
-        getenv("OPENAI_MODEL", "gpt-6.1-luna"),
+        getenv("OPENAI_MODEL", "gpt-6-luna"),
         JUDGE_INSTRUCTIONS,
         json.dumps({
             "findings": review["findings"],

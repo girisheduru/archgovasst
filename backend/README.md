@@ -49,7 +49,7 @@ If the upload says OpenAI rejected the backend credentials, set a valid `OPENAI_
 
 ### Configure the standards store
 
-Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. Document reviews default to `gpt-6.1-luna` when `OPENAI_MODEL` is unset. Set `OPENAI_MODEL` to override the default with a model that supports Structured Outputs and is available to your API project. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.
+Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. Document reviews and optional LLM evaluation default to `gpt-6-luna` when `OPENAI_MODEL` is unset. Set `OPENAI_MODEL` to override the default with a model that supports Structured Outputs and is available to your API project. If your backend still sets `OPENAI_MODEL=gpt-6.1-luna`, change it to `gpt-6-luna` and restart Uvicorn or redeploy the Railway service before retrying the review. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.
 
 From the clone root with the backend dependencies, OpenAI key, and Chroma connection configured, import the four bundled Word standards. Both import paths create one Chroma record per rule version and send the rule text and evidence guidance to OpenAI's `text-embedding-3-small` for embedding.
 
