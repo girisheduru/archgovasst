@@ -45,6 +45,8 @@ The form accepts up to 10 approved Word (.docx) standards, each up to 10 MB and 
 
 Both the form and CLI overwrite any stored rule with a matching ID and effective date, including its metadata and embedding. A different effective date creates a separate version. On success the API returns `added` and `updated` counts. It returns HTTP 422 if a rule ID and effective date appear more than once in the upload, and HTTP 503 if embedding or storage fails.
 
+If the upload says OpenAI rejected the backend credentials, set a valid `OPENAI_API_KEY` on the FastAPI service, then redeploy and retry the upload. Locally, set the key in the shell that starts Uvicorn and restart the backend. The import fails before writing rule versions to Chroma.
+
 ### Configure the standards store
 
 Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. Document reviews default to `gpt-6.1-luna` when `OPENAI_MODEL` is unset. Set `OPENAI_MODEL` to override the default with a model that supports Structured Outputs and is available to your API project. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.

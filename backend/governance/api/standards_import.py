@@ -6,6 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from openai import AuthenticationError
 
 from ..agent.documents import MAX_UPLOAD_BYTES
 from ..standards_store.ingestion import InvalidImport, ingest_rules
@@ -52,6 +53,12 @@ def import_standards(
             added, updated = ingest_rules(rules)
     except InvalidImport as exc:
         raise HTTPException(422, str(exc)) from exc
+    except AuthenticationError:
+        raise HTTPException(
+            503,
+            "OpenAI rejected the backend credentials for standards embeddings. "
+            "Ask the backend administrator to check OPENAI_API_KEY, then retry the upload.",
+        ) from None
     except Exception as exc:
         raise HTTPException(503, "Could not import standards. Check the backend embedding and Chroma settings.") from exc
 
