@@ -1,4 +1,28 @@
+from contextlib import contextmanager
 from os import getenv
+
+from opentelemetry.trace import StatusCode
+
+
+@contextmanager
+def trace_review(tracer, name, review_id):
+    if tracer is None:
+        yield
+        return
+
+    with tracer.start_as_current_span(
+        name,
+        attributes={"openinference.span.kind": "CHAIN", "session.id": str(review_id)},
+        record_exception=False,
+        set_status_on_exception=False,
+    ) as span:
+        try:
+            yield
+        except Exception:
+            span.set_status(StatusCode.ERROR)
+            raise
+        else:
+            span.set_status(StatusCode.OK)
 
 
 def configure_arize():

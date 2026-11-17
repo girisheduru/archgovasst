@@ -12,6 +12,7 @@ from ..agent.documents import MAX_UPLOAD_BYTES, parse_document
 from ..agent.evidence import ModelUnavailable
 from ..standards_store.catalog import StandardsUnavailable
 from ..standards_store.models import DocumentType, RiskTier
+from .tracing import trace_review
 
 router = APIRouter(prefix="/api/reviews", tags=["Document reviews"])
 
@@ -63,36 +64,37 @@ def start_review(
     declared_tier: Annotated[RiskTier, Form()],
     as_of: Annotated[date | None, Form()] = None,
 ):
-    if not getenv("OPENAI_API_KEY", "").strip():
-        raise HTTPException(503, "Configure OPENAI_API_KEY on the backend before starting a review.")
-    filename = Path(document.filename or "").name
-    payload = document.file.read(MAX_UPLOAD_BYTES + 1)
-    if len(payload) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, "Upload a document of at most 10 MB.")
-    try:
-        sections = parse_document(filename, payload)
-    except ValueError as exc:
-        raise HTTPException(422, str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(422, "Could not extract text from the document.") from exc
-
     review_id = uuid4()
-    try:
-        state = request.app.state.workflow.invoke(
-            {
-                "filename": filename,
-                "document_type": document_type,
-                "declared_tier": declared_tier,
-                "as_of": (as_of or date.today()).isoformat(),
-                "sections": sections,
-            },
-            _config(review_id),
-        )
-    except (StandardsUnavailable, ModelUnavailable) as exc:
-        request.app.state.checkpointer.delete_thread(str(review_id))
-        raise HTTPException(503, str(exc)) from exc
+    with trace_review(request.app.state.tracer, "start_document_review", review_id):
+        if not getenv("OPENAI_API_KEY", "").strip():
+            raise HTTPException(503, "Configure OPENAI_API_KEY on the backend before starting a review.")
+        filename = Path(document.filename or "").name
+        payload = document.file.read(MAX_UPLOAD_BYTES + 1)
+        if len(payload) > MAX_UPLOAD_BYTES:
+            raise HTTPException(413, "Upload a document of at most 10 MB.")
+        try:
+            sections = parse_document(filename, payload)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(422, "Could not extract text from the document.") from exc
 
-    return _view(review_id, state)
+        try:
+            state = request.app.state.workflow.invoke(
+                {
+                    "filename": filename,
+                    "document_type": document_type,
+                    "declared_tier": declared_tier,
+                    "as_of": (as_of or date.today()).isoformat(),
+                    "sections": sections,
+                },
+                _config(review_id),
+            )
+        except (StandardsUnavailable, ModelUnavailable) as exc:
+            request.app.state.checkpointer.delete_thread(str(review_id))
+            raise HTTPException(503, str(exc)) from exc
+
+        return _view(review_id, state)
 
 
 @router.get("/{review_id}")
@@ -103,11 +105,12 @@ def get_review(review_id: UUID, request: Request):
 
 @router.post("/{review_id}/decision")
 def decide(review_id: UUID, decision: Decision, request: Request):
-    config = _config(review_id)
-    workflow = request.app.state.workflow
-    with request.app.state.decision_lock:
-        current = _view(review_id, workflow.get_state(config).values)
-        if current["stage"] != decision.checkpoint:
-            raise HTTPException(409, "This checkpoint is no longer pending. Refresh the review.")
-        state = workflow.invoke(Command(resume=decision.model_dump()), config)
-    return _view(review_id, state)
+    with trace_review(request.app.state.tracer, decision.checkpoint, review_id):
+        config = _config(review_id)
+        workflow = request.app.state.workflow
+        with request.app.state.decision_lock:
+            current = _view(review_id, workflow.get_state(config).values)
+            if current["stage"] != decision.checkpoint:
+                raise HTTPException(409, "This checkpoint is no longer pending. Refresh the review.")
+            state = workflow.invoke(Command(resume=decision.model_dump()), config)
+        return _view(review_id, state)
