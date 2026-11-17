@@ -1,20 +1,8 @@
 """Validate, embed, and import new rule versions."""
 
-from pathlib import Path
-
-from pydantic import TypeAdapter
-
 from ..providers.openai import embed_texts
 from .catalog import collection_name, standards_client
 from .models import Rule
-
-
-def ingest(path: Path) -> int:
-    return ingest_rules(parse_rules(path.read_bytes()))
-
-
-def parse_rules(payload: bytes) -> list[Rule]:
-    return TypeAdapter(list[Rule]).validate_json(payload)
 
 
 def ingest_rules(rules: list[Rule]) -> int:

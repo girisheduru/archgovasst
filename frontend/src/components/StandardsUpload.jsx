@@ -38,15 +38,11 @@ export default function StandardsUpload({ apiBaseUrl }) {
   return (
     <section className="shell review-section" aria-labelledby="standards-title">
       <h1 id="standards-title">Upload governance standards</h1>
-      <p>Upload the source documents and their approved JSON rule catalog to add verified rule versions to Chroma.</p>
+      <p>Upload approved Word standards to import their rules.</p>
       <form className="review-form" onSubmit={upload}>
         <label>
           Source standards documents
-          <input name="documents" type="file" accept=".pdf,.docx" multiple required />
-        </label>
-        <label>
-          Approved rules catalog
-          <input name="catalog" type="file" accept=".json,application/json" required />
+          <input name="documents" type="file" accept=".docx" multiple required />
         </label>
         <label>
           Standards import token

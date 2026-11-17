@@ -57,6 +57,7 @@ nav { font-size: .9rem; }
 }
 
 .hero p { max-width: 47ch; margin-block: 1.25rem 1.75rem; color: #d4e7e1; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
 
 .primary-link {
   display: inline-flex;

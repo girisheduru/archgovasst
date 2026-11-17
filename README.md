@@ -9,6 +9,6 @@ Architecture Governance Assistant reviews design documents against versioned gov
 
 ## Try it locally
 
-Start the backend on port 8000, then start the frontend in a separate terminal using the guides above. Open the URL printed by Vite. To run a document review, configure the backend's `OPENAI_API_KEY` and Chroma connection, then import the [standards catalog](backend/standards/README.md). **Load sample review** still shows fictional findings without those services.
+Start the backend on port 8000, then start the frontend in a separate terminal using the guides above. Open the URL printed by Vite. To run a document review, configure the backend's `OPENAI_API_KEY` and Chroma connection, then import the [Word standards](backend/standards/README.md). **Load sample review** still shows fictional findings without those services.
 
 For the full list of project commands, see the [command reference](COMMANDS.md).

@@ -11,7 +11,7 @@ FastAPI serves a LangGraph document review workflow for the [React frontend](../
 | LLM provider | [`providers/openai.py`](governance/providers/openai.py) handles OpenAI embeddings and structured responses. |
 | Chroma standards store | [`ingestion.py`](governance/standards_store/ingestion.py) embeds and imports rule versions, [`catalog.py`](governance/standards_store/catalog.py) resolves applicable versions, and [`chroma.py`](governance/standards_store/chroma.py) configures the connection. |
 | Evaluation | [`metrics.py`](governance/evaluation/metrics.py) scores the report against the source and answer key, and [`judge.py`](governance/evaluation/judge.py) runs the optional LLM evaluation. |
-| Source documents | [`backend/standards/`](standards/) contains the four Word documents and the rule catalog. |
+| Source documents | [`backend/standards/`](standards/) contains the four Word standards used for import. |
 
 [`governance/standards.py`](governance/standards.py) and [`governance/evaluate.py`](governance/evaluate.py) are the command-line entry points for standards import and evaluation.
 
@@ -41,32 +41,16 @@ curl http://127.0.0.1:8000/api/reviews/sample
 
 Set `STANDARDS_IMPORT_TOKEN` to a strong secret in the backend process environment or Railway service variables, then restart or redeploy. Share it only with standards maintainers. The `/standards` form sends the entered token as a bearer credential to `POST /api/standards/import`. An empty backend value disables this endpoint.
 
-The form accepts up to 10 text-based PDF or DOCX sources, each up to 10 MB and 20 MB combined, and an approved JSON catalog of up to 200 rules and 1 MB. The bundled sources and [`rules.json`](standards/rules.json) can be selected together. The backend checks each rule quote against the extracted source text. The catalog supplies dates, evidence guidance, applicability, and risk. Chroma stores the versioned rule records. Source files are processed for validation during the request. Reimporting identical versions skips them, and changing a stored version requires a new effective date. This uses the same Chroma and OpenAI settings as the CLI importer below.
+The form accepts up to 10 approved Word (.docx) standards, each up to 10 MB and 20 MB combined, with at most 200 rules per import. Use the [bundled Word template format](standards/README.md). The backend extracts rule IDs, statements, evidence guidance, and effective dates directly from the documents. Chroma stores the versioned rule records. Reimporting identical versions skips them, and changing a stored version requires a new effective date.
 
 ### Configure the standards store
 
 Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. Document reviews default to `gpt-6.1-luna` when `OPENAI_MODEL` is unset. Set `OPENAI_MODEL` to override the default with a model that supports Structured Outputs and is available to your API project. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.
 
-The [standards folder](standards/README.md) contains the four source Word documents and the 26-rule Chroma import catalog. A catalog is a JSON array with one entry per approved rule and effective date. Use a globally unique ID per rule. This example is fictional.
-
-```json
-[
-  {
-    "id": "SEC-01",
-    "standard": "STD-02",
-    "effective_date": "2026-01-01",
-    "quote": "Each production system must identify an accountable owner.",
-    "evidence_required": "A named person or team accountable for operating the production system.",
-    "gap_risk": "high",
-    "document_types": ["solution_design", "architecture_decision"]
-  }
-]
-```
-
-From the clone root with the backend dependencies, OpenAI key, and Chroma connection configured, import the included catalog. The import creates one Chroma record per rule version and sends its rule text and evidence guidance to OpenAI's `text-embedding-3-small`. Re-running with identical content skips existing versions.
+From the clone root with the backend dependencies, OpenAI key, and Chroma connection configured, import the four bundled Word standards. Both import paths create one Chroma record per rule version and send the rule text and evidence guidance to OpenAI's `text-embedding-3-small` for embedding.
 
 ```sh
-.venv/bin/python -m backend.governance.standards backend/standards/rules.json
+.venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx
 ```
 
 For each rule ID, the review selects the latest version effective on or before the review date. It then checks every rule applicable to the selected document type. OpenAI extracts candidate quotes using a structured schema. The backend validates each quote against the normalized text of the cited PDF page or Word body block. The reviewer confirms the extraction before the policy engine produces findings. The assessed tier is the highest of the declared tier and the configured risks of rules with missing evidence. A second reviewer decision finalizes the report.

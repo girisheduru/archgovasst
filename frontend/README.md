@@ -14,11 +14,11 @@ Select **Start a document review** on the homepage or **Document review** in the
 - [`main.jsx`](src/main.jsx) selects the homepage or the dedicated document review page based on the URL.
 - [`DocumentReview.jsx`](src/components/DocumentReview.jsx) manages review state and coordinates the [upload panel](src/components/UploadPanel.jsx) and [review panel](src/components/ReviewPanel.jsx).
 - [`api/reviews.js`](src/api/reviews.js) handles document review requests and API errors.
-- [`StandardsUpload.jsx`](src/components/StandardsUpload.jsx) submits source documents and their approved rule catalog from `/standards`.
+- [`StandardsUpload.jsx`](src/components/StandardsUpload.jsx) submits approved Word standards from `/standards`.
 
 ## Upload standards
 
-Open **Standards** in the header. Select the source PDFs or Word documents and their approved JSON catalog, then enter the import token configured on the backend. The form shows how many rule versions were added and how many were already present. The backend checks the rule quotes against the documents and sends the catalog quotes and evidence guidance to OpenAI for embedding. It stores the rule records in Chroma.
+Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. Use the [bundled standards format](../backend/standards/README.md). The form shows how many rule versions were added and how many were already present. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. It stores the rule records in Chroma.
 
 ## Run locally
 

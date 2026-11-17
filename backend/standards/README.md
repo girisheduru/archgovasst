@@ -1,7 +1,11 @@
 # Governance standards
 
-The four Word files are the source documents for the Chroma standards collection. [`rules.json`](rules.json) contains the 26 numbered rules from STD-01 through STD-04, one row per rule version. Rule statements, evidence guidance, and effective dates come directly from the source documents. Use the original documents for the surrounding scope and exceptions.
+The four Word standards contain 26 rules. Use their layout for new documents.
 
-The catalog makes each rule available to solution design and architecture decision reviews. The source documents give no per-rule gap severity, so the catalog uses `medium` for every missing-evidence finding as a provisional application default.
+- Put `Document ID` (for example, `STD-01`) and `Effective date` (`YYYY-MM-DD`) in the metadata table, with each value in the cell to the right of its label.
+- List the rules between the `3. Rules` and `4. Exceptions` headings. Give each rule three consecutive paragraphs with an ID and title (for example, `ARC-01 Scalability`), the rule statement, and the evidence guidance beginning with `Evidence expected in the design document:`.
+- Keep each rule ID unique across standards and reuse it when publishing a new version with a later effective date.
 
-Follow the [backend import guide](../README.md#configure-document-reviews) to populate Chroma from this catalog. The import sends rule text and evidence guidance to OpenAI to create embeddings. The Word files are marked **Internal**.
+Every imported rule applies to solution design and architecture decision reviews. Missing evidence defaults to medium risk. Refer to the Word standards for surrounding scope and exceptions.
+
+Follow the [backend import guide](../README.md#configure-document-reviews) to populate Chroma. The import sends rule text and evidence guidance to OpenAI for embeddings. The bundled Word files are marked **Internal**.

@@ -29,7 +29,10 @@ function HomePage() {
           <div>
             <h1 id="page-title">Architecture governance for AI systems</h1>
             <p>Prepare AI architecture proposals for review. Capture design decisions, surface risks, and give reviewers the information they need to make a decision.</p>
-            <a className="primary-link" href="/review">Start a document review <span aria-hidden="true">→</span></a>
+            <div className="hero-actions">
+              <a className="primary-link" href="/review">Start a document review <span aria-hidden="true">→</span></a>
+              <a className="primary-link" href="/standards">Upload standards <span aria-hidden="true">→</span></a>
+            </div>
           </div>
           <aside className="review-brief" aria-labelledby="brief-title">
             <h2 id="brief-title">What to bring to a review</h2>
