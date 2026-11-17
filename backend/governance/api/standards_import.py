@@ -1,5 +1,4 @@
 from hmac import compare_digest
-from logging import getLogger
 from os import getenv
 from pathlib import Path
 from threading import Lock
@@ -15,7 +14,6 @@ from ..standards_store.source_documents import extract_rules
 router = APIRouter(prefix="/api/standards", tags=["Standards"])
 bearer = HTTPBearer(auto_error=False)
 import_lock = Lock()
-logger = getLogger(__name__)
 
 
 def authorize_import(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)]):
@@ -55,7 +53,6 @@ def import_standards(
     except InvalidImport as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
-        logger.error("Standards import failed (%s).", type(exc).__name__)
         raise HTTPException(503, "Could not import standards. Check the backend embedding and Chroma settings.") from exc
 
     return {"added": added, "updated": updated}

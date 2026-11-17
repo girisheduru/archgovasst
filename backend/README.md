@@ -116,6 +116,8 @@ Use Railway's variable autocomplete to select the actual Chroma service, or past
 
 Keep the Chroma service on Railway's private network. FastAPI startup and sample reviews run independently of Chroma.
 
+If a standards upload returns HTTP 503 with `Could not import standards`, search the FastAPI deployment logs for `Standards import failed`. The entry identifies the failed step and exception type, including the underlying exception type when available. For a Chroma connection failure, compare `CHROMA_PORT` with the port in the Chroma service startup logs. The FastAPI listening port belongs to a separate service.
+
 If a document review reports `Could not read the approved standards collection.`, check the FastAPI deployment logs for `Standards read failed`. The entry gives the failed step and exception type. For a connection failure, check the private hostname, listening port, and Chroma deployment. If opening the collection fails because it is missing, confirm `CHROMA_STANDARDS_COLLECTION` and [import the approved standards](#upload-approved-standards-from-the-frontend) into that instance.
 
 Call `GET /api/reviews/sample` and look for the `generate_sample_review` span in the Arize project. The span records timing and status. The trace does not include the response body or request headers. See [Arize AX tracing setup](https://arize.com/docs/ax/observe/tracing/setup/manual-instrumentation) and the [Chroma client reference](https://docs.trychroma.com/reference/python/client).
