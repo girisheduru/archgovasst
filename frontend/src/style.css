@@ -49,7 +49,7 @@ nav { font-size: .9rem; }
   padding-block: clamp(3rem, 8vw, 6rem);
 }
 
-h1 {
+.hero h1 {
   max-width: 12ch;
   font-size: clamp(2.25rem, 6vw, 4.8rem);
   line-height: 1.03;
@@ -84,6 +84,7 @@ h1 {
 .review-brief li::marker { color: #adf4d1; }
 
 .review-section { padding-block: 2.5rem 4rem; }
+.review-section h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.15; }
 .review-section h2 { margin-bottom: 1.15rem; font-size: 1.8rem; }
 .review-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 
@@ -98,19 +99,18 @@ h1 {
 .review-card h3 { font-size: 1.12rem; }
 .review-card p { margin-top: .4rem; color: #465a62; }
 
-.sample-section { border-top: 1px solid #dce6df; padding-block: 2rem 4rem; }
 .sample-header { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-bottom: .75rem; }
 .sample-header button { border: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .sample-header button:disabled { opacity: .65; cursor: wait; }
-.sample-results { margin-top: 1rem; }
 .sample-error { color: #a12424; }
 
 @media (max-width: 45rem) {
   .hero-content, .review-grid { grid-template-columns: 1fr; }
+  .header-content { flex-wrap: wrap; padding-block: .8rem; }
 }
 
 @media (max-width: 24rem) {
-  .header-content { flex-wrap: wrap; padding-block: .8rem; }
+  nav { flex-wrap: wrap; }
 }
 
 .review-form { display: grid; gap: 1rem; margin: 1rem 0; }
@@ -131,6 +131,22 @@ h1 {
 .field-hint { margin: -.6rem 0 0; }
 .findings { display: grid; gap: .75rem; margin: 1rem 0; }
 .findings p { overflow-wrap: anywhere; }
+.finding-comparison {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: .85rem;
+}
+.finding-comparison > div {
+  padding: .85rem;
+  border: 1px solid #dce6df;
+  border-radius: .5rem;
+  background: #f5f7f5;
+}
+.finding-comparison h4 { margin: 0; font-size: .95rem; }
+@media (max-width: 45rem) {
+  .finding-comparison { grid-template-columns: 1fr; }
+}
 .review-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; }
 .review-actions button:not(.primary-link) {
   cursor: pointer;

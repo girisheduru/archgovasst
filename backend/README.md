@@ -1,6 +1,6 @@
 # Architecture Governance Assistant Backend
 
-FastAPI serves a LangGraph document review workflow and the fictional sample endpoint for the [React frontend](../frontend/README.md).
+FastAPI serves a LangGraph document review workflow for the [React frontend](../frontend/README.md) and a fictional sample endpoint for API checks.
 
 ## Code layout
 
@@ -37,6 +37,14 @@ curl http://127.0.0.1:8000/api/reviews/sample
 
 ## Configure document reviews
 
+### Upload approved standards from the frontend
+
+Set `STANDARDS_IMPORT_TOKEN` to a strong secret in the backend process environment or Railway service variables, then restart or redeploy. Share it only with standards maintainers. The `/standards` form sends the entered token as a bearer credential to `POST /api/standards/import`. An empty backend value disables this endpoint.
+
+The form accepts up to 10 text-based PDF or DOCX sources, each up to 10 MB and 20 MB combined, and an approved JSON catalog of up to 200 rules and 1 MB. The bundled sources and [`rules.json`](standards/rules.json) can be selected together. The backend checks each rule quote against the extracted source text. The catalog supplies dates, evidence guidance, applicability, and risk. Chroma stores the versioned rule records. Source files are processed for validation during the request. Reimporting identical versions skips them, and changing a stored version requires a new effective date. This uses the same Chroma and OpenAI settings as the CLI importer below.
+
+### Configure the standards store
+
 Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runtime reads process environment variables. Use [`.env.example`](.env.example) as a reference. Document reviews default to `gpt-6.1-luna` when `OPENAI_MODEL` is unset. Set `OPENAI_MODEL` to override the default with a model that supports Structured Outputs and is available to your API project. Set a Chroma connection using the options below. `CHROMA_STANDARDS_COLLECTION` defaults to `governance-standards`.
 
 The [standards folder](standards/README.md) contains the four source Word documents and the 26-rule Chroma import catalog. A catalog is a JSON array with one entry per approved rule and effective date. Use a globally unique ID per rule. This example is fictional.
@@ -65,7 +73,7 @@ For each rule ID, the review selects the latest version effective on or before t
 
 ## Document review API
 
-- `POST /api/reviews` accepts multipart fields `document` (PDF or DOCX), `document_type`, `declared_tier` (`low`, `medium`, or `high`), and optional `as_of` (ISO date, defaults to the server date). The response includes a review ID and the pending evidence checkpoint.
+- `POST /api/reviews` accepts multipart fields `document` (PDF or DOCX), `document_type`, `declared_tier` (`low`, `medium`, or `high`), and optional `as_of` (ISO date, defaults to the server date). The response includes a review ID, the pending evidence checkpoint, and the retrieved rule text, standard ID, and effective date for each evidence item.
 - `GET /api/reviews/{review_id}` returns the current checkpoint, extraction, report, and decision history.
 - `POST /api/reviews/{review_id}/decision` accepts JSON with `checkpoint` (`confirm_evidence` or `approve_report`), `decision` (`approve` or `reject`), `reviewer`, and optional `note`. A decision for an earlier checkpoint returns HTTP 409. Rejection at either checkpoint ends that review.
 

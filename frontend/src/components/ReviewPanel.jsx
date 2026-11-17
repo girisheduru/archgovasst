@@ -8,24 +8,37 @@ const checkpoints = {
 };
 
 function Findings({ review }) {
-  const hasReport = review.findings.length > 0;
-  const rows = hasReport ? review.findings : review.extraction;
+  const rows = review.findings.length ? review.findings : review.extraction;
+  const evidenced = rows.filter(row => row.evidence).length;
 
   return (
-    <div className="findings">
-      {rows.map(row => (
-        <article className="review-card" key={row.rule_id}>
-          <h3>{row.rule_id}{row.standard && ` · ${row.standard}`}</h3>
-          {row.rule_quote && <p><strong>Standard ({row.effective_date})</strong> “{row.rule_quote}”</p>}
-          <p><strong>Evidence required</strong> {row.evidence_required}</p>
-          {row.evidence ? (
-            <p><strong>{row.evidence.source}</strong> “{row.evidence.quote}”</p>
-          ) : (
-            <p><strong>Not evidenced.</strong>{row.gap_risk && ` ${row.gap_risk} risk evidence gap.`}</p>
-          )}
-        </article>
-      ))}
-    </div>
+    <section aria-labelledby="comparison-title">
+      <h2 id="comparison-title">Standards comparison</h2>
+      <p>{rows.length} rules reviewed · {evidenced} with evidence · {rows.length - evidenced} not evidenced</p>
+      <div className="findings">
+        {rows.map(row => (
+          <article className="review-card" key={row.rule_id}>
+            <h3>{row.rule_id}{row.standard && ` · ${row.standard}`}</h3>
+            {row.effective_date && <p>Effective {row.effective_date}</p>}
+            <div className="finding-comparison">
+              <div>
+                <h4>Standard requirement</h4>
+                {row.rule_quote && <p>“{row.rule_quote}”</p>}
+                <p><strong>Evidence required</strong> {row.evidence_required}</p>
+              </div>
+              <div>
+                <h4>Design evidence</h4>
+                {row.evidence ? (
+                  <p><strong>{row.evidence.source}</strong> “{row.evidence.quote}”</p>
+                ) : (
+                  <p><strong>Not evidenced.</strong>{row.gap_risk && ` ${row.gap_risk} risk evidence gap.`}</p>
+                )}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -36,7 +49,7 @@ export default function ReviewPanel({ review, busy, error, onDecision, onDownloa
     <>
       <div className="sample-header">
         <div>
-          <h3>{checkpoints[review.stage]}</h3>
+          <h2>{checkpoints[review.stage]}</h2>
           <p>{review.filename} · Standards as of {review.as_of}</p>
           <p>Declared tier: <strong>{review.declared_tier}</strong>
             {review.risk_tier && <> · Assessed tier: <strong>{review.risk_tier}</strong></>}

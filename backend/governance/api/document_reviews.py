@@ -42,6 +42,9 @@ def _view(review_id: UUID, state: dict):
         "extraction": [
             {
                 "rule_id": rule["id"],
+                "standard": rule["standard"],
+                "effective_date": rule["effective_date"],
+                "rule_quote": rule["quote"],
                 "evidence_required": rule["evidence_required"],
                 "evidence": state["evidence"].get(rule["id"]),
             }

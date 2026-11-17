@@ -48,8 +48,6 @@ Run these commands from the clone root. The backend uses Python 3.11 in the loca
 | `.venv/bin/python -m uvicorn main:app --app-dir backend --host 127.0.0.1 --port 8000` | Starts the FastAPI backend on the port expected by the Vite proxy. |
 | `curl -fsS http://127.0.0.1:8000/api/reviews/sample` | Checks the backend directly and prints a fictional sample review as JSON. |
 
-Start the frontend with the development command above and click **Load sample review** to see the system name, findings, and next steps.
-
 If the direct backend check returns JSON but the frontend request returns HTML, restart Vite so it loads `frontend/vite.config.js`. From the clone root, `npm --prefix frontend run dev -- --host 127.0.0.1 --port 5174 --strictPort` starts a fresh frontend on port 5174 while leaving the process on port 5173 running. Run `curl -i http://127.0.0.1:5174/api/reviews/sample` to verify that the frontend serves the API response as JSON.
 
 ## Connect the frontend to Railway

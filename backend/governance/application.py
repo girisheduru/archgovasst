@@ -8,7 +8,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from starlette.concurrency import run_in_threadpool
 
 from .agent.graph import compile_workflow
-from .api import document_reviews, sample_reviews
+from .api import document_reviews, sample_reviews, standards_import
 from .api.tracing import configure_arize
 
 
@@ -35,9 +35,12 @@ allowed_origins = [
     for origin in getenv("CORS_ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
-app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_methods=["GET", "POST"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=allowed_origins, allow_methods=["GET", "POST"], allow_headers=["Authorization"]
+)
 app.include_router(sample_reviews.router)
 app.include_router(document_reviews.router)
+app.include_router(standards_import.router)
 
 
 @app.middleware("http")

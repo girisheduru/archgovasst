@@ -82,7 +82,8 @@ export default function DocumentReview({ apiBaseUrl }) {
 
   return (
     <section id="document-review" className="shell review-section" aria-labelledby="document-review-title">
-      <h2 id="document-review-title">Document review</h2>
+      <h1 id="document-review-title">Review against governance standards</h1>
+      {!review && <p>Upload a design to compare it with the applicable standards in Chroma.</p>}
       {!review && <UploadPanel busy={busy} onSubmit={upload} />}
       {busy && <p role="status">Processing review…</p>}
       {error && <p className="sample-error" role="alert">{error}</p>}

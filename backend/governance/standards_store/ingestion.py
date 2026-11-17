@@ -10,7 +10,14 @@ from .models import Rule
 
 
 def ingest(path: Path) -> int:
-    rules = TypeAdapter(list[Rule]).validate_json(path.read_bytes())
+    return ingest_rules(parse_rules(path.read_bytes()))
+
+
+def parse_rules(payload: bytes) -> list[Rule]:
+    return TypeAdapter(list[Rule]).validate_json(payload)
+
+
+def ingest_rules(rules: list[Rule]) -> int:
     keys = [f"{rule.id}:{rule.effective_date.isoformat()}" for rule in rules]
     if not rules or len(set(keys)) != len(keys):
         raise ValueError("Supply at least one rule, with unique rule ID and effective date pairs.")
