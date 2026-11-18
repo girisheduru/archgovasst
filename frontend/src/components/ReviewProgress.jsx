@@ -23,20 +23,29 @@ export default function ReviewProgress({ review }) {
     return 'Upcoming';
   }
 
-  return (
+  const steps = (
+    <ol role="list">
+      {stages.map(stage => {
+        const status = statusFor(stage);
+        return (
+          <li key={stage.id} data-status={status} aria-current={status === 'Current' ? 'step' : undefined}>
+            <strong>{stage.label}</strong>
+            <span className="status-badge">{status}</span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+
+  return review ? (
+    <details className="review-progress review-progress-compact">
+      <summary>Review progress</summary>
+      {steps}
+    </details>
+  ) : (
     <section className="review-progress" aria-labelledby="review-progress-title">
       <h2 id="review-progress-title">Review progress</h2>
-      <ol role="list">
-        {stages.map(stage => {
-          const status = statusFor(stage);
-          return (
-            <li key={stage.id} data-status={status} aria-current={status === 'Current' ? 'step' : undefined}>
-              <strong>{stage.label}</strong>
-              <span className="status-badge">{status}</span>
-            </li>
-          );
-        })}
-      </ol>
+      {steps}
     </section>
   );
 }

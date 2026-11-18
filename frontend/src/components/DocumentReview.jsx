@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { requestReportPdf, requestReview } from '../api/reviews.js';
-import ReviewPanel from './ReviewPanel.jsx';
+import ReviewPanel, { isDecisionPending } from './ReviewPanel.jsx';
 import ReviewProgress from './ReviewProgress.jsx';
 import UploadPanel from './UploadPanel.jsx';
 
@@ -21,6 +21,7 @@ export default function DocumentReview({ apiBaseUrl }) {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const endpoint = `${apiBaseUrl}/api/reviews`;
+  const decisionPending = isDecisionPending(review);
 
   useEffect(() => {
     const previous = sessionStorage.getItem(storageKey);
@@ -113,13 +114,13 @@ export default function DocumentReview({ apiBaseUrl }) {
   }
 
   return (
-    <section id="document-review" className="shell review-section" aria-labelledby="document-review-title">
+    <section id="document-review" className="shell review-section document-review" aria-labelledby="document-review-title">
       <h1 id="document-review-title">Review against governance standards</h1>
       <ReviewProgress review={review} />
       {!review && <p>Upload a design to check every applicable rule. The review searches relevant passages first and checks the full design for rules still missing a verified quote.</p>}
       {!review && <UploadPanel busy={busy} onSubmit={upload} />}
-      {busy && <p role="status">Processing review…</p>}
-      {error && <p className="sample-error" role="alert">{error}</p>}
+      {!decisionPending && busy && <p role="status">Processing review…</p>}
+      {!decisionPending && error && <p className="sample-error" role="alert">{error}</p>}
       {review && (
         <ReviewPanel
           review={review}

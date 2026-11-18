@@ -145,6 +145,15 @@ nav { font-size: .9rem; }
 }
 .sample-header h2[data-status] { color: var(--status-color); }
 
+.document-review { padding-block: 1.5rem 3rem; }
+.document-review h1 { font-size: clamp(1.55rem, 4vw, 2.25rem); }
+.document-review .sample-header {
+  justify-content: space-between;
+  gap: .75rem;
+  overflow-wrap: anywhere;
+}
+.document-review .sample-header h2 { margin-bottom: .2rem; font-size: 1.4rem; }
+.document-review summary { cursor: pointer; font-weight: 600; }
 .review-progress {
   margin: 1rem 0 1.5rem;
   padding: 1rem;
@@ -152,6 +161,8 @@ nav { font-size: .9rem; }
   border-radius: .85rem;
   background: #edf5ef;
 }
+.review-progress-compact { margin-block: .75rem 1rem; padding: .55rem .75rem; }
+.review-progress-compact[open] ol { margin-top: .65rem; }
 .review-progress h2 { margin: 0 0 .65rem; font-size: 1.1rem; }
 .review-progress ol {
   display: grid;
@@ -210,19 +221,66 @@ nav { font-size: .9rem; }
   border-radius: .35rem;
   background: #fff;
 }
-.review-form .primary-link { justify-self: start; }
-.review-fields { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); }
-.field-hint { margin: -.6rem 0 0; }
-.evidence-note {
-  margin: 1rem 0;
-  padding: .85rem 1rem;
+.review-decision {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-block: .75rem;
+  padding: .65rem .85rem;
   border: 1px solid #c6ddd0;
   border-radius: .5rem;
   background: #edf5ef;
 }
-.evidence-note p + p { margin-top: .4rem; }
-.findings { display: grid; gap: .75rem; margin: 1rem 0; }
+.review-decision .review-form {
+  max-height: 60vh;
+  overflow-y: auto;
+  gap: .65rem;
+  margin: .55rem 0 0;
+  padding: .2rem;
+}
+.review-decision .review-fields { gap: .65rem; }
+.standards-comparison { margin-top: .85rem; }
+.standards-comparison h2 { margin-bottom: .5rem; font-size: 1.35rem; }
+.finding-filters { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+.finding-filters label { display: grid; gap: .15rem; min-width: 0; font-size: .9rem; font-weight: 600; }
+.finding-filters select {
+  width: 100%;
+  padding: .35rem .5rem;
+  border: 1px solid #87919d;
+  border-radius: .35rem;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-weight: 400;
+}
+.findings-count { margin-top: .45rem; color: #465a62; font-size: .9rem; }
+.review-form .primary-link { justify-self: start; }
+.review-fields { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); }
+.field-hint { margin: -.6rem 0 0; }
+.evidence-note {
+  margin: .65rem 0;
+  padding: .45rem .75rem;
+  border: 1px solid #c6ddd0;
+  border-radius: .5rem;
+  background: #edf5ef;
+}
+.evidence-note p { margin-top: .4rem; }
+.findings { display: grid; gap: .4rem; margin: .65rem 0; }
 .findings p { overflow-wrap: anywhere; }
+.finding-row { padding: 0; border-top-width: 1px; border-radius: .5rem; }
+.finding-row > summary { padding: .5rem .75rem; }
+.finding-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  vertical-align: middle;
+  gap: .3rem .6rem;
+  max-width: calc(100% - 1.25rem);
+  overflow-wrap: anywhere;
+  font-weight: 400;
+}
+.finding-details { padding: 0 .75rem .75rem; border-top: 1px solid #dce6df; }
+.standards-comparison :is(select, summary, textarea) { scroll-margin-top: 4rem; }
 .finding-comparison {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -235,8 +293,7 @@ nav { font-size: .9rem; }
   border-radius: .5rem;
   background: #f5f7f5;
 }
-.finding-comparison h4 { margin: 0; font-size: .95rem; }
-.finding-comparison .status-badge { margin-top: .35rem; }
+.finding-comparison h3 { font-size: .95rem; }
 .finding-comment { margin-top: .85rem; padding-top: .65rem; border-top: 1px solid #dce6df; }
 .finding-comment summary { cursor: pointer; width: fit-content; font-weight: 600; }
 .finding-comment label { margin-top: .65rem; }
