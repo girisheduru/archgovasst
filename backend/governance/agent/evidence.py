@@ -82,7 +82,7 @@ def _extract_from_passages(model, rules, passages):
     )
 
 
-def extract(state: State):
+def extract_evidence_with_llm(state: State):
     model = getenv("OPENAI_MODEL", "gpt-6-luna")
     rules, sections = state["rules"], state["sections"]
     full_document = getenv("EVIDENCE_RETRIEVAL_MODE") == "full_document"

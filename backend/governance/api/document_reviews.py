@@ -5,16 +5,19 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from langgraph.types import Command
-from pydantic import BaseModel, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints
 
 from ..agent.documents import MAX_UPLOAD_BYTES, parse_document
 from ..agent.evidence import ModelUnavailable
+from ..review_report import render_review_report
 from ..standards_store.catalog import StandardsUnavailable
 from ..standards_store.models import DocumentType, RiskTier
 from .tracing import trace_operation, trace_review
 
 router = APIRouter(prefix="/api/reviews", tags=["Document reviews"])
+FindingComment = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
 
 
 class Decision(BaseModel):
@@ -22,6 +25,7 @@ class Decision(BaseModel):
     decision: Literal["approve", "reject"]
     reviewer: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
     note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] = ""
+    comments: dict[str, FindingComment] = Field(default_factory=dict)
 
 
 def _config(review_id: UUID):
@@ -105,6 +109,24 @@ def get_review(review_id: UUID, request: Request):
     return _view(review_id, snapshot.values)
 
 
+@router.get("/{review_id}/report.pdf", response_class=Response, responses={
+    200: {"content": {"application/pdf": {}}},
+})
+def download_report(review_id: UUID, request: Request):
+    review = get_review(review_id, request)
+    if review["stage"] not in ("approved", "rejected") or not review["risk_tier"]:
+        raise HTTPException(409, "A final review report is not available.")
+
+    return Response(
+        render_review_report(review),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="review-{review_id}.pdf"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
 @router.post("/{review_id}/decision")
 def decide(review_id: UUID, decision: Decision, request: Request):
     with trace_review(request.app.state.tracer, decision.checkpoint, review_id):
@@ -114,5 +136,8 @@ def decide(review_id: UUID, decision: Decision, request: Request):
             current = _view(review_id, workflow.get_state(config).values)
             if current["stage"] != decision.checkpoint:
                 raise HTTPException(409, "This checkpoint is no longer pending. Refresh the review.")
+            rows = current["extraction"] if decision.checkpoint == "confirm_evidence" else current["findings"]
+            if decision.comments.keys() - {row["rule_id"] for row in rows}:
+                raise HTTPException(422, "Finding comments must refer to rules in this checkpoint.")
             state = workflow.invoke(Command(resume=decision.model_dump()), config)
         return _view(review_id, state)

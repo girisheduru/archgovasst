@@ -7,12 +7,12 @@ from langgraph.types import interrupt
 
 from ..api.tracing import trace_node
 from ..standards_store.catalog import load_rules
-from .evidence import extract
-from .policy import check
+from .evidence import extract_evidence_with_llm
+from .policy import assess_evidence_gaps
 from .state import State
 
 
-def prepare(state: State):
+def retrieve_applicable_rules(state: State):
     return {"rules": load_rules(datetime.fromisoformat(state["as_of"]).date(), state["document_type"])}
 
 
@@ -23,7 +23,7 @@ def audit(state: State, checkpoint: str, decision: dict):
     ]
 
 
-def confirm(state: State):
+def confirm_evidence(state: State):
     decision = interrupt({"checkpoint": "confirm_evidence"})
     return {
         "stage": "rejected" if decision["decision"] == "reject" else "confirmed",
@@ -31,11 +31,11 @@ def confirm(state: State):
     }
 
 
-def report(_state: State):
+def mark_report_ready(_state: State):
     return {"stage": "approve_report"}
 
 
-def approve(state: State):
+def approve_report(state: State):
     decision = interrupt({"checkpoint": "approve_report"})
     return {
         "stage": "approved" if decision["decision"] == "approve" else "rejected",
@@ -49,13 +49,24 @@ def after_confirmation(state: State):
 
 def compile_workflow(checkpointer):
     graph = StateGraph(State)
-    for node in (prepare, extract, confirm, check, report, approve):
+    for node in (
+        retrieve_applicable_rules,
+        extract_evidence_with_llm,
+        confirm_evidence,
+        assess_evidence_gaps,
+        mark_report_ready,
+        approve_report,
+    ):
         graph.add_node(node.__name__, trace_node(node))
-    graph.add_edge(START, "prepare")
-    graph.add_edge("prepare", "extract")
-    graph.add_edge("extract", "confirm")
-    graph.add_conditional_edges("confirm", after_confirmation, {"confirmed": "check", "rejected": END})
-    graph.add_edge("check", "report")
-    graph.add_edge("report", "approve")
-    graph.add_edge("approve", END)
+    graph.add_edge(START, "retrieve_applicable_rules")
+    graph.add_edge("retrieve_applicable_rules", "extract_evidence_with_llm")
+    graph.add_edge("extract_evidence_with_llm", "confirm_evidence")
+    graph.add_conditional_edges(
+        "confirm_evidence",
+        after_confirmation,
+        {"confirmed": "assess_evidence_gaps", "rejected": END},
+    )
+    graph.add_edge("assess_evidence_gaps", "mark_report_ready")
+    graph.add_edge("mark_report_ready", "approve_report")
+    graph.add_edge("approve_report", END)
     return graph.compile(checkpointer=checkpointer)

@@ -5,7 +5,7 @@ from .state import State
 RISK_TIERS = ("low", "medium", "high")
 
 
-def check(state: State):
+def assess_evidence_gaps(state: State):
     findings = []
     risk_tier = state["declared_tier"]
     for rule in state["rules"]:

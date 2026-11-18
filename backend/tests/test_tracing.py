@@ -75,21 +75,29 @@ class ReviewTracingTests(unittest.TestCase):
         ])
         by_id = {span.context.span_id: span for span in spans}
         expected_parents = {
-            "parse_document": "start_document_review", "prepare": "start_document_review",
-            "extract": "start_document_review", "chroma.load_rules": "prepare",
-            "design.rank_passages": "extract", "openai.embeddings.create": "design.rank_passages",
-            "design.search_full_document": "extract",
-            "check": "confirm_evidence", "report": "confirm_evidence",
+            "parse_document": "start_document_review",
+            "retrieve_applicable_rules": "start_document_review",
+            "extract_evidence_with_llm": "start_document_review",
+            "chroma.load_rules": "retrieve_applicable_rules",
+            "design.rank_passages": "extract_evidence_with_llm",
+            "openai.embeddings.create": "design.rank_passages",
+            "design.search_full_document": "extract_evidence_with_llm",
+            "assess_evidence_gaps": "confirm_evidence", "mark_report_ready": "confirm_evidence",
         }
         for name, parent in expected_parents.items():
             span = next(span for span in spans if span.name == name)
             self.assertEqual(by_id[span.parent.span_id].name, parent)
             self.assertEqual(span.context.trace_id, by_id[span.parent.span_id].context.trace_id)
         waits = [span for span in spans if span.attributes.get("review.waiting_for_decision")]
-        self.assertEqual([span.name for span in waits], ["confirm", "approve"])
+        self.assertEqual([span.name for span in waits], ["confirm_evidence", "approve_report"])
+        for request_span in roots[1:]:
+            self.assertTrue(any(
+                span.name == request_span.name and span.parent == request_span.context
+                for span in spans
+            ))
         llm_calls = [span for span in spans if span.name == "openai.responses.parse"]
         self.assertEqual([by_id[span.parent.span_id].name for span in llm_calls], [
-            "extract", "design.search_full_document",
+            "extract_evidence_with_llm", "design.search_full_document",
         ])
         for llm in llm_calls:
             self.assertEqual(llm.attributes["openinference.span.kind"], "LLM")
@@ -110,7 +118,7 @@ class ReviewTracingTests(unittest.TestCase):
         response = self.upload()
         self.assertEqual(response.status_code, 503)
         spans = self.exporter.get_finished_spans()
-        for name in ("chroma.load_rules", "prepare", "start_document_review"):
+        for name in ("chroma.load_rules", "retrieve_applicable_rules", "start_document_review"):
             span = next(span for span in spans if span.name == name)
             self.assertEqual(span.status.status_code, StatusCode.ERROR)
             self.assertIsNone(span.status.description)

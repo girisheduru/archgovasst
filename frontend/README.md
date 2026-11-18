@@ -6,12 +6,13 @@ The homepage introduces **AI Architecture Governance Assistant** through the pro
 
 Select **Start a document review** on the homepage or **Document review** in the header to open `/review`. You can bookmark or refresh that page directly.
 
-The **Review progress** banner shows completed stages and passed checkpoints, highlights the current and next stages, and marks the checkpoint where a rejected review stopped.
+The **Review progress** banner uses green for completed stages and passed checkpoints, blue for the current stage, purple for the next stage, red for rejection, and gray for stages that are upcoming or were skipped. Decision buttons and recorded outcomes use green for approval and red for rejection.
 
 1. Upload a text-based PDF or Word document and select its type and declared risk tier. The optional standards date selects effective rule versions. The review searches relevant design passages for every applicable rule and checks the full design for rules without a verified quote.
-2. Use **Standards comparison** to see the rule text, source standard, and effective date alongside evidence from the design. The page counts rules with evidence and flags missing evidence. Enter your reviewer name to confirm or reject the extraction.
+2. Use **Standards comparison** to see the rule text, source standard, and effective date alongside evidence from the design. Findings show a green **Evidenced** badge or an amber **Not evidenced** badge. Enter your reviewer name to confirm or reject the extraction.
 3. Review the assessed risk tier and cited findings, then approve or reject the report. The note above the findings explains what design evidence shows and how evidence gaps can affect the assessed risk tier.
-4. Download the JSON decision record to keep a copy. Refreshing the same tab restores the review while the backend process is running. After a backend restart, upload the document to start a new review.
+4. At either checkpoint, select **Add comment** on a finding to record feedback specific to that rule. Comments are optional and save with your decision. Submitted comments appear on the finding with the reviewer name and checkpoint. Use **Decision note** for the overall rationale.
+5. After the report is approved or rejected, select **Download final report (PDF)** to save the outcome, risk tiers, standards comparison, finding comments, and reviewer decisions. **Download decision record** saves the JSON used for evaluation, including comments in the decision history. Refreshing the same tab restores the review while the backend process is running. After a backend restart, upload the document to start a new review.
 
 ## Code layout
 

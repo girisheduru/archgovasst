@@ -4,7 +4,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from backend.governance.agent.evidence import Evidence, Extraction, extract
+from backend.governance.agent.evidence import Evidence, Extraction, extract_evidence_with_llm
 from backend.governance.agent.retrieval import build_passages, rank_passages
 
 
@@ -42,9 +42,9 @@ class EvidenceRetrievalTests(unittest.TestCase):
             patch("backend.governance.agent.evidence.rank_passages", return_value=rankings),
             patch("backend.governance.agent.evidence.parse_response", side_effect=responses) as parse,
         ):
-            result = extract(self.state)
+            result = extract_evidence_with_llm(self.state)
             with patch.dict("os.environ", {"EVIDENCE_RETRIEVAL_MODE": "full_document"}):
-                baseline = extract(self.state)
+                baseline = extract_evidence_with_llm(self.state)
         ranked, fallback, original = [json.loads(call.args[2]) for call in parse.call_args_list]
         self.assertEqual(list(ranked["passages"]), [str(chosen)])
         self.assertLess(len(json.dumps(ranked)), len(json.dumps(original)))
@@ -61,7 +61,7 @@ class EvidenceRetrievalTests(unittest.TestCase):
                 patch("backend.governance.agent.evidence.rank_passages", side_effect=ValueError) as rank,
                 patch("backend.governance.agent.evidence.parse_response", return_value=Extraction(evidence=[])) as parse,
             ):
-                self.assertEqual(extract(self.state)["evidence"], {})
+                self.assertEqual(extract_evidence_with_llm(self.state)["evidence"], {})
                 self.assertEqual(rank.call_count, int(mode == "hybrid"))
                 self.assertEqual(parse.call_count, 1)
                 payload = json.loads(parse.call_args.args[2])

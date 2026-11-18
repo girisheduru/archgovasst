@@ -32,7 +32,7 @@ export default function ReviewProgress({ review }) {
           return (
             <li key={stage.id} data-status={status} aria-current={status === 'Current' ? 'step' : undefined}>
               <strong>{stage.label}</strong>
-              <span>{status}</span>
+              <span className="status-badge">{status}</span>
             </li>
           );
         })}

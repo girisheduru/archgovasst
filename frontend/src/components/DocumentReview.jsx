@@ -1,14 +1,24 @@
 import React, { useEffect, useState } from 'react';
-import { requestReview } from '../api/reviews.js';
+import { requestReportPdf, requestReview } from '../api/reviews.js';
 import ReviewPanel from './ReviewPanel.jsx';
 import ReviewProgress from './ReviewProgress.jsx';
 import UploadPanel from './UploadPanel.jsx';
 
 const storageKey = 'archgovasst.reviewId';
 
+function saveDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export default function DocumentReview({ apiBaseUrl }) {
   const [review, setReview] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState('');
   const endpoint = `${apiBaseUrl}/api/reviews`;
 
@@ -58,23 +68,42 @@ export default function DocumentReview({ apiBaseUrl }) {
 
   function decide(event) {
     event.preventDefault();
-    const fields = Object.fromEntries(new FormData(event.currentTarget));
+    const fields = new FormData(event.currentTarget);
+    const comments = Object.fromEntries(
+      [...fields.entries()]
+        .filter(([name, value]) => name.startsWith('comment:') && value.trim())
+        .map(([name, value]) => [name.slice('comment:'.length), value.trim()]),
+    );
     const decision = event.nativeEvent.submitter?.value ?? 'approve';
     run(() => requestReview(`${endpoint}/${review.review_id}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...fields, decision, checkpoint: review.stage }),
+      body: JSON.stringify({
+        reviewer: fields.get('reviewer'),
+        note: fields.get('note'),
+        comments,
+        decision,
+        checkpoint: review.stage,
+      }),
     }));
   }
 
   function download() {
     const blob = new Blob([JSON.stringify(review, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `review-${review.review_id}.json`;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    saveDownload(blob, `review-${review.review_id}.json`);
+  }
+
+  async function downloadReport() {
+    setDownloading(true);
+    setError('');
+    try {
+      const report = await requestReportPdf(`${endpoint}/${review.review_id}/report.pdf`);
+      saveDownload(report, `review-${review.review_id}.pdf`);
+    } catch (error) {
+      setError(error.name === 'TimeoutError' ? 'The PDF download timed out.' : error.message);
+    } finally {
+      setDownloading(false);
+    }
   }
 
   function startNewReview() {
@@ -95,9 +124,11 @@ export default function DocumentReview({ apiBaseUrl }) {
         <ReviewPanel
           review={review}
           busy={busy}
+          downloading={downloading}
           error={error}
           onDecision={decide}
           onDownload={download}
+          onDownloadReport={downloadReport}
           onRefresh={() => run(() => requestReview(`${endpoint}/${review.review_id}`))}
           onNewReview={startNewReview}
         />

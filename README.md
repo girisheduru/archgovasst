@@ -17,4 +17,13 @@ For the full list of project commands, see the [command reference](COMMANDS.md).
 
 ## Architecture and workflows
 
-See the [retrieval architecture](ARCHITECTURE.md#rule-selection-and-evidence-retrieval) for rule selection, passage search, and the full-design fallback. The [workflow diagrams](flowdiagrams.md) show the LangGraph nodes, edges, and reviewer checkpoints.
+| LangGraph node | Role |
+| --- | --- |
+| `retrieve_applicable_rules` | Retrieves applicable rules from Chroma for the document type and standards date. |
+| `extract_evidence_with_llm` | Uses an LLM to extract evidence and verifies the quotes against the design. |
+| `confirm_evidence` | Pauses for a reviewer to confirm or reject the evidence. |
+| `assess_evidence_gaps` | Records findings and calculates the assessed risk tier. |
+| `mark_report_ready` | Moves the review to the report approval stage. |
+| `approve_report` | Pauses for a reviewer to approve or reject the report. |
+
+The [architecture diagram](ARCHITECTURE.md) shows where LangGraph fits in the system. The [retrieval architecture](ARCHITECTURE.md#rule-selection-and-evidence-retrieval) explains rule selection, passage search, and the full-design fallback. The [workflow diagrams](flowdiagrams.md#langgraph-nodes-and-edges) show the paths through both reviewer decisions.

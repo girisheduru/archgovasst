@@ -1,5 +1,20 @@
 # Architecture and workflows
 
+## Diagram colors
+
+| Color | Meaning |
+| --- | --- |
+| Blue | People, uploads, and browser interactions |
+| Green | API and deterministic processing |
+| Purple | OpenAI calls and LLM evidence extraction |
+| Orange | Standards storage and saved review state |
+| Amber | Validation branches and human decisions |
+| Teal | Results and completed steps |
+| Red | Rejection |
+| Gray | Optional integrations and workflow boundaries |
+
+Node labels and arrow labels also identify each step and decision.
+
 ## System architecture
 
 ```mermaid
@@ -15,9 +30,24 @@ flowchart LR
     Review -->|"Embed design passages and extract cited evidence"| OpenAI["OpenAI"]
     Import -->|"Embed rule text and evidence guidance"| OpenAI
     API -.->|"Optional review and sample traces"| Arize["Arize AX"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class User,UI user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class API,Review,Import process;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    class Memory,Chroma store;
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#3b0764,stroke-width:2px;
+    class OpenAI llm;
+    classDef optional fill:#f1f5f9,stroke:#64748b,color:#1e293b,stroke-width:2px;
+    class Arize optional;
 ```
 
 ## Standards import
+
+### RAG upload flow
+
+Upload approved standards to build the knowledge store before starting a design review. This flow ends when rule versions and their embeddings are saved in Chroma.
 
 The [standards upload page and CLI](backend/README.md#configure-document-reviews) use the same import logic.
 
@@ -32,9 +62,28 @@ flowchart TD
     Lookup --> Embed["Generate embeddings with OpenAI"]
     Embed --> Save["Write records keyed by rule ID and effective date"]
     Save --> Result["Return counts of versions added and overwritten"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Web,CLI user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class Auth,Parse process;
+    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
+    class Duplicate decision;
+    classDef rejected fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px;
+    class Reject rejected;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    class Lookup,Save store;
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#3b0764,stroke-width:2px;
+    class Embed llm;
+    classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    class Result output;
 ```
 
 ## Document review
+
+### Review flow
+
+This flow starts with a solution design and reads the standards already imported into Chroma. Design passage ranking and evidence extraction run during this review.
 
 The [review page](frontend/README.md) shows each checkpoint as the [review API](backend/README.md#document-review-api) returns it. The backend records the reviewer and decision at both checkpoints. You can download the JSON decision record at any checkpoint.
 
@@ -52,6 +101,21 @@ flowchart TD
     Policy --> Report{"Checkpoint 2: Approve report?"}
     Report -->|"Reject"| Rejected
     Report -->|"Approve"| Approved["End review as approved"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Upload user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class Parse,Validate,Policy process;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    class Rules store;
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#3b0764,stroke-width:2px;
+    class Extract,Full llm;
+    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
+    class Evidence,Report decision;
+    classDef rejected fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px;
+    class Rejected rejected;
+    classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    class Approved output;
 ```
 
 The [retrieval architecture](ARCHITECTURE.md#rule-selection-and-evidence-retrieval) shows how every applicable rule stays in scope. On refresh, the browser uses the saved review ID to fetch the current state. A backend restart clears that state.
@@ -62,6 +126,15 @@ flowchart LR
     Fetch --> Exists{"Review still in memory?"}
     Exists -->|"Yes"| Restore["Restore the current review"]
     Exists -->|"No"| Upload["Upload the document to start again"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Refresh,Upload user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class Fetch process;
+    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
+    class Exists decision;
+    classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    class Restore output;
 ```
 
 ## LangGraph nodes and edges
@@ -70,37 +143,56 @@ The [graph definition](backend/governance/agent/graph.py) registers six Python f
 
 ```mermaid
 flowchart TD
-    start(["START"]) --> prepare["prepare"]
-    prepare --> extract["extract"]
-    extract --> confirm["confirm"]
-    confirm -.->|"confirmed"| check["check"]
+    start(["START"]) --> prepare["retrieve_applicable_rules"]
+    prepare --> extract["extract_evidence_with_llm"]
+    extract --> confirm["confirm_evidence"]
+    confirm -.->|"confirmed"| check["assess_evidence_gaps"]
     confirm -.->|"rejected"| finish(["END"])
-    check --> report["report"]
-    report --> approve["approve"]
+    check --> report["mark_report_ready"]
+    report --> approve["approve_report"]
     approve --> finish
+
+    classDef optional fill:#f1f5f9,stroke:#64748b,color:#1e293b,stroke-width:2px;
+    class start,finish optional;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    class prepare store;
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#3b0764,stroke-width:2px;
+    class extract llm;
+    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
+    class confirm,approve decision;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class check,report process;
 ```
 
 | Node | What it does |
 | --- | --- |
-| `prepare` | Loads the applicable rule versions from Chroma using the document type and standards date. |
-| `extract` | Ranks design passages per rule, verifies candidate quotes, searches the full design for unresolved rules, and sets the stage to `confirm_evidence`. |
-| `confirm` | Pauses for the evidence decision, appends it to the audit history, and sets the stage to `confirmed` or `rejected`. |
-| `check` | Applies policy rules to produce findings and calculate the assessed risk tier. |
-| `report` | Sets the stage to `approve_report` so the generated findings are ready for the next reviewer decision. |
-| `approve` | Pauses for the report decision, appends it to the audit history, and sets the final stage to `approved` or `rejected`. |
+| `retrieve_applicable_rules` | Retrieves the latest effective version of every applicable rule from Chroma. |
+| `extract_evidence_with_llm` | Ranks design passages per rule, extracts quotes with an LLM, and verifies them against the source text. It searches the full design for unresolved rules before setting the stage to `confirm_evidence`. |
+| `confirm_evidence` | Pauses for the evidence decision, appends it to the audit history, and sets the stage to `confirmed` or `rejected`. |
+| `assess_evidence_gaps` | Applies policy rules to produce findings and calculate the assessed risk tier. |
+| `mark_report_ready` | Sets the stage to `approve_report` so the generated findings are ready for the next reviewer decision. |
+| `approve_report` | Pauses for the report decision, appends it to the audit history, and sets the final stage to `approved` or `rejected`. |
 
-Solid arrows are fixed edges registered with `add_edge`. The dashed arrows are the two outcomes of the conditional edge registered with `add_conditional_edges`. After `confirm` resumes, `after_confirmation` reads the stage and sends the review to `check` or directly to `END`. Both report decisions follow the same fixed edge from `approve` to `END`. `START` and `END` mark the graph boundaries.
+Solid arrows are fixed edges registered with `add_edge`. The dashed arrows are the two outcomes of the conditional edge registered with `add_conditional_edges`. After `confirm_evidence` resumes, `after_confirmation` reads the stage and sends the review to `assess_evidence_gaps` or directly to `END`. Both report decisions follow the same fixed edge from `approve_report` to `END`. `START` and `END` mark the graph boundaries.
 
 ### How a decision resumes the graph
 
-Both `confirm` and `approve` call `interrupt()`. LangGraph saves the paused state in the in-memory checkpointer under the review ID, which the API passes as the LangGraph thread ID. The decision endpoint checks that the submitted checkpoint is still pending, then resumes the same thread with `Command(resume=...)`. LangGraph re-enters the paused node and `interrupt()` returns the submitted decision.
+Both `confirm_evidence` and `approve_report` call `interrupt()`. LangGraph saves the paused state in the in-memory checkpointer under the review ID, which the API passes as the LangGraph thread ID. The decision endpoint checks that the submitted checkpoint is still pending, then resumes the same thread with `Command(resume=...)`. LangGraph re-enters the paused node and `interrupt()` returns the submitted decision.
 
 ```mermaid
 sequenceDiagram
-    participant UI as Review page
-    participant API as FastAPI
-    participant Graph as LangGraph
-    participant Store as In-memory checkpointer
+    box rgb(219, 234, 254)
+        participant UI as Review page
+    end
+    box rgb(220, 252, 231)
+        participant API as FastAPI
+    end
+    box rgb(220, 252, 231)
+        participant Graph as LangGraph
+    end
+    box rgb(255, 237, 213)
+        participant Store as In-memory checkpointer
+    end
     Graph->>Store: Save paused state under the review ID
     Graph-->>API: Return state at the pending checkpoint
     API-->>UI: Show evidence or report for review
@@ -125,6 +217,13 @@ flowchart LR
     Client["API client"] --> Request["GET /api/reviews/sample"]
     Request --> Select["Select a fictional system and findings"]
     Select --> Response["Return sample JSON with findings and next steps"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Client user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class Request,Select process;
+    classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    class Response output;
 ```
 
 ## Report evaluation
@@ -142,6 +241,19 @@ flowchart TD
     Judge -->|"Yes"| OpenAI["Score clarity, actionability, and hallucination risk"]
     Judge -->|"No"| Output["Print JSON scores"]
     OpenAI --> Output
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Record,Source,Key user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class Evaluate,Metrics process;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    class Rules store;
+    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
+    class Judge decision;
+    classDef llm fill:#ede9fe,stroke:#7c3aed,color:#3b0764,stroke-width:2px;
+    class OpenAI llm;
+    classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    class Output output;
 ```
 
 ## Local and hosted request flow
@@ -154,6 +266,13 @@ flowchart TD
     Vercel --> Browser["React app sends requests from the browser"]
     Browser -->|"Configured HTTPS API URL through your gateway"| Railway["FastAPI on Railway"]
     Railway --> Chroma["Chroma Cloud or private Chroma service"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Local,Hosted,Browser user;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    class Vite,LocalAPI,Vercel,Railway process;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    class Chroma store;
 ```
 
 See the [frontend hosting guide](frontend/README.md#connect-to-a-hosted-backend) and the [Railway setup guide](backend/README.md#deploy-on-railway) for configuration.
