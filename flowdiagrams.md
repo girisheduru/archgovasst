@@ -96,7 +96,7 @@ flowchart LR
 
 This flow starts with a solution design and reads the standards already imported into Chroma. Design passage ranking and evidence extraction run during this review.
 
-The [review page](frontend/README.md) shows each checkpoint as the [review API](backend/README.md#document-review-api) returns it. Reviewers can filter and expand findings at either checkpoint, then open **Record decision** to submit their decision and any draft comments. The backend records the reviewer and decision at both checkpoints. You can download the JSON decision record at any checkpoint.
+The [review page](frontend/README.md) shows each checkpoint as the [review API](backend/README.md#document-review-api) returns it. Reviewers can filter and expand findings at either checkpoint, then submit their decision and any draft comments using the visible **Record decision** form. The backend records the reviewer and decision at both checkpoints. You can download the JSON decision record at any checkpoint.
 
 ```mermaid
 flowchart TD

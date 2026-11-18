@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
 const checkpoints = {
-  confirm_evidence: '1. Confirm extracted evidence',
+  confirm_evidence: 'Confirm extracted evidence',
   approve_report: '2. Approve the review report',
   approved: 'Review approved',
   rejected: 'Review rejected',
@@ -15,18 +15,20 @@ function DecisionHistory({ audit }) {
   return (
     <details className="decision-history">
       <summary>Decision history</summary>
-      <ol>
-        {audit.map(entry => {
-          const status = entry.decision === 'approve' ? 'Approved' : 'Rejected';
-          return (
-            <li key={entry.checkpoint}>
-              <strong>{checkpoints[entry.checkpoint]}</strong> · <span className="status-badge" data-status={status}>{status}</span> by {entry.reviewer}
-              {' · '}<time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
-              {entry.note && <p>{entry.note}</p>}
-            </li>
-          );
-        })}
-      </ol>
+      {audit.length > 0 ? (
+        <ol>
+          {audit.map(entry => {
+            const status = entry.decision === 'approve' ? 'Approved' : 'Rejected';
+            return (
+              <li key={entry.checkpoint}>
+                <strong>{checkpoints[entry.checkpoint]}</strong> · <span className="status-badge" data-status={status}>{status}</span> by {entry.reviewer}
+                {' · '}<time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
+                {entry.note && <p>{entry.note}</p>}
+              </li>
+            );
+          })}
+        </ol>
+      ) : <p>No decisions recorded yet.</p>}
     </details>
   );
 }
@@ -34,6 +36,7 @@ function DecisionHistory({ audit }) {
 function Findings({ review, pending, busy }) {
   const [evidence, setEvidence] = useState('');
   const [standard, setStandard] = useState('');
+  const [showEvidenceHelp, setShowEvidenceHelp] = useState(false);
   const rows = review.findings.length ? review.findings : review.extraction;
   const evidenced = rows.filter(row => row.evidence).length;
   const evidenceOptions = [
@@ -49,7 +52,22 @@ function Findings({ review, pending, busy }) {
 
   return (
     <section className="standards-comparison" aria-labelledby="comparison-title">
-      <h2 id="comparison-title">Standards comparison</h2>
+      <div className="comparison-heading">
+        <h2 id="comparison-title">Standards comparison</h2>
+        <button
+          className="evidence-help"
+          type="button"
+          aria-label="How to read design evidence"
+          aria-expanded={showEvidenceHelp}
+          aria-controls="evidence-note"
+          onClick={() => setShowEvidenceHelp(open => !open)}
+        >?</button>
+      </div>
+      <div id="evidence-note" className="evidence-note" hidden={!showEvidenceHelp}>
+        <h3>How to read design evidence</h3>
+        <p><strong>With evidence</strong> means the review cites text in the uploaded design that supports the requirement. Confirming that the control is in place requires implementation evidence.</p>
+        <p><strong>Not evidenced</strong> means the review found no supporting quote it could verify in the uploaded design. The control may still be in place, but the evidence gap can raise the assessed risk tier.</p>
+      </div>
       <div className="finding-filters">
         <div className="evidence-filters" role="radiogroup" aria-labelledby="evidence-status-label">
           <span id="evidence-status-label">Evidence status</span>
@@ -79,18 +97,6 @@ function Findings({ review, pending, busy }) {
       <p className="findings-count" role="status">
         {visibleRows.size === 0 ? 'No findings match the current filters.' : `Showing ${visibleRows.size} of ${rows.length} rules`}
       </p>
-      {(review.risk_tier || review.audit.length > 0) && (
-        <div className="review-reference">
-          {review.risk_tier && (
-            <details className="evidence-note">
-              <summary>How to read design evidence</summary>
-              <p><strong>With evidence</strong> means the review cites text in the uploaded design that supports the requirement. Confirming that the control is in place requires implementation evidence.</p>
-              <p><strong>Not evidenced</strong> means the review found no supporting quote it could verify in the uploaded design. The control may still be in place, but the evidence gap can raise the assessed risk tier.</p>
-            </details>
-          )}
-          {review.audit.length > 0 && <DecisionHistory audit={review.audit} />}
-        </div>
-      )}
       <div className="findings">
         {/* Keep filtered rows mounted so their draft comments stay in the decision form. */}
         {rows.map(row => (
@@ -176,13 +182,13 @@ export default function ReviewPanel({
       </div>
       {pending ? (
         <form key={review.stage} onSubmit={onDecision}>
-          <div className="review-decision">
-            <details>
-              <summary>Record decision</summary>
+          <div className="review-decision-row">
+            <section className="review-decision" aria-labelledby="review-decision-title">
+              <h3 id="review-decision-title">Record decision</h3>
               <div className="review-form">
                 <div className="review-fields">
                   <label>Reviewer name<input name="reviewer" required maxLength="120" /></label>
-                  <label>Decision note (optional)<textarea name="note" maxLength="2000" rows="2" /></label>
+                  <label>Decision note (optional)<textarea name="note" maxLength="2000" rows={1} /></label>
                 </div>
                 <div className="review-actions">
                   <button className="decision-button" data-status="Approved" value="approve" disabled={busy}>
@@ -192,14 +198,20 @@ export default function ReviewPanel({
                   {error && <button type="button" disabled={busy} onClick={onRefresh}>Refresh review</button>}
                 </div>
               </div>
-            </details>
-            {busy && <p role="status">Processing review…</p>}
-            {error && <p className="sample-error" role="alert">{error}</p>}
+              {busy && <p role="status">Processing review…</p>}
+              {error && <p className="sample-error" role="alert">{error}</p>}
+            </section>
+            <DecisionHistory audit={review.audit} />
           </div>
           {review.stage === 'confirm_evidence' && <p>Verify that each cited quote supports its requirement before confirming.</p>}
           {findings}
         </form>
-      ) : findings}
+      ) : (
+        <>
+          <DecisionHistory audit={review.audit} />
+          {findings}
+        </>
+      )}
     </>
   );
 }
