@@ -15,6 +15,13 @@ function Findings({ review }) {
     <section aria-labelledby="comparison-title">
       <h2 id="comparison-title">Standards comparison</h2>
       <p>{rows.length} rules reviewed · {evidenced} with evidence · {rows.length - evidenced} not evidenced</p>
+      {review.risk_tier && (
+        <aside className="evidence-note" aria-label="How to read design evidence">
+          <p><strong>How to read design evidence</strong></p>
+          <p><strong>With evidence</strong> means the review cites text in the uploaded design that supports the requirement. Confirming that the control is in place requires implementation evidence.</p>
+          <p><strong>Not evidenced</strong> means the review found no supporting quote it could verify in the uploaded design. The control may still be in place, but the evidence gap can raise the assessed risk tier.</p>
+        </aside>
+      )}
       <div className="findings">
         {rows.map(row => (
           <article className="review-card" key={row.rule_id}>
@@ -60,7 +67,7 @@ export default function ReviewPanel({ review, busy, error, onDecision, onDownloa
           <button type="button" disabled={busy} onClick={onNewReview}>New review</button>
         </div>
       </div>
-      {review.stage === 'confirm_evidence' && <p>Verify that each quote supports the required evidence before confirming.</p>}
+      {review.stage === 'confirm_evidence' && <p>Every applicable rule was checked. Verify that each cited quote supports the requirement before confirming.</p>}
       <Findings review={review} />
       {pending && (
         <form key={review.stage} className="review-form review-card" onSubmit={onDecision}>

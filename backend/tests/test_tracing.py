@@ -38,9 +38,9 @@ class ReviewTracingTests(unittest.TestCase):
             model="test-model", output_parsed=Extraction(evidence=[]),
             usage=SimpleNamespace(input_tokens=20, output_tokens=5, total_tokens=25),
         )
-        self.enterContext(patch.dict("os.environ", {"OPENAI_API_KEY": "test"}))
+        self.enterContext(patch.dict("os.environ", {"OPENAI_API_KEY": "test", "EVIDENCE_RETRIEVAL_MODE": "hybrid"}))
         self.enterContext(patch("backend.governance.application.configure_arize", return_value=self.provider))
-        self.enterContext(patch(
+        self.parse_document = self.enterContext(patch(
             "backend.governance.api.document_reviews.parse_document",
             return_value={"section": "Private design text"},
         ))
@@ -53,6 +53,12 @@ class ReviewTracingTests(unittest.TestCase):
         )
 
     def test_nodes_retrieval_and_llm_are_children_across_checkpoint_requests(self):
+        self.parse_document.return_value = {f"Page {i}": "Private design text " * 90 for i in range(4)}
+        embeddings = self.openai.return_value.__enter__.return_value.embeddings
+        embeddings.create.return_value = SimpleNamespace(
+            data=[SimpleNamespace(index=i, embedding=[1.0, 0.0]) for i in range(5)],
+            usage=SimpleNamespace(total_tokens=50),
+        )
         response = self.upload()
         self.assertEqual(response.status_code, 201, response.text)
         review_id = response.json()["review_id"]
@@ -71,8 +77,9 @@ class ReviewTracingTests(unittest.TestCase):
         expected_parents = {
             "parse_document": "start_document_review", "prepare": "start_document_review",
             "extract": "start_document_review", "chroma.load_rules": "prepare",
-            "openai.responses.parse": "extract", "check": "confirm_evidence",
-            "report": "confirm_evidence",
+            "design.rank_passages": "extract", "openai.embeddings.create": "design.rank_passages",
+            "design.search_full_document": "extract",
+            "check": "confirm_evidence", "report": "confirm_evidence",
         }
         for name, parent in expected_parents.items():
             span = next(span for span in spans if span.name == name)
@@ -80,9 +87,15 @@ class ReviewTracingTests(unittest.TestCase):
             self.assertEqual(span.context.trace_id, by_id[span.parent.span_id].context.trace_id)
         waits = [span for span in spans if span.attributes.get("review.waiting_for_decision")]
         self.assertEqual([span.name for span in waits], ["confirm", "approve"])
-        llm = next(span for span in spans if span.name == "openai.responses.parse")
-        self.assertEqual(llm.attributes["openinference.span.kind"], "LLM")
-        self.assertEqual(llm.attributes["llm.token_count.total"], 25)
+        llm_calls = [span for span in spans if span.name == "openai.responses.parse"]
+        self.assertEqual([by_id[span.parent.span_id].name for span in llm_calls], [
+            "extract", "design.search_full_document",
+        ])
+        for llm in llm_calls:
+            self.assertEqual(llm.attributes["openinference.span.kind"], "LLM")
+            self.assertEqual(llm.attributes["llm.token_count.total"], 25)
+        embed = next(span for span in spans if span.name == "openai.embeddings.create")
+        self.assertEqual(embed.attributes["embedding.token_count"], 50)
         for span in spans:
             self.assertEqual(span.attributes["session.id"], review_id)
             self.assertEqual(span.status.status_code, StatusCode.OK)

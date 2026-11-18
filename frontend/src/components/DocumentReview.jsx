@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { requestReview } from '../api/reviews.js';
 import ReviewPanel from './ReviewPanel.jsx';
+import ReviewProgress from './ReviewProgress.jsx';
 import UploadPanel from './UploadPanel.jsx';
 
 const storageKey = 'archgovasst.reviewId';
@@ -50,7 +51,9 @@ export default function DocumentReview({ apiBaseUrl }) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     if (!data.get('as_of')) data.delete('as_of');
-    run(() => requestReview(endpoint, { method: 'POST', body: data }));
+    run(() => requestReview(endpoint, {
+      method: 'POST', body: data, signal: AbortSignal.timeout(230000),
+    }));
   }
 
   function decide(event) {
@@ -83,7 +86,8 @@ export default function DocumentReview({ apiBaseUrl }) {
   return (
     <section id="document-review" className="shell review-section" aria-labelledby="document-review-title">
       <h1 id="document-review-title">Review against governance standards</h1>
-      {!review && <p>Upload a design to compare it with the applicable standards in Chroma.</p>}
+      <ReviewProgress review={review} />
+      {!review && <p>Upload a design to check every applicable rule. The review searches relevant passages first and checks the full design for rules still missing a verified quote.</p>}
       {!review && <UploadPanel busy={busy} onSubmit={upload} />}
       {busy && <p role="status">Processing review…</p>}
       {error && <p className="sample-error" role="alert">{error}</p>}

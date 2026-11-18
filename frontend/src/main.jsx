@@ -8,16 +8,16 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').trim().replace(/\/+
 
 const reviewAreas = [
   {
-    title: 'Security & privacy',
-    description: 'Document data classification, access controls, and how sensitive information is handled.',
+    title: 'Encryption & identity',
+    description: 'Document encryption at rest and in transit, authentication, and access controls against applicable policies.',
   },
   {
-    title: 'Architecture fit',
-    description: 'Record the proposed components, integration points, and exceptions to existing standards.',
+    title: 'Networking & secrets',
+    description: 'Describe network boundaries, connectivity, and how credentials and secrets are stored, accessed, and rotated.',
   },
   {
-    title: 'Operational readiness',
-    description: 'Identify service owners, monitoring, recovery plans, and how the system will be supported.',
+    title: 'Observability & resiliency',
+    description: 'Record logging, monitoring, alerting, failure handling, and recovery plans so reviewers can check the supporting evidence.',
   },
 ];
 
@@ -27,20 +27,20 @@ function HomePage() {
       <section className="hero" aria-labelledby="page-title">
         <div className="shell hero-content">
           <div>
-            <h1 id="page-title">Architecture governance for AI systems</h1>
-            <p>Prepare AI architecture proposals for review. Capture design decisions, surface risks, and give reviewers the information they need to make a decision.</p>
+            <h1 id="page-title">AI Architecture Governance Assistant</h1>
+            <p>Review solution design documents against applicable architecture policies. Bring approved standards together, identify missing evidence, and give architects a consistent basis for review.</p>
             <div className="hero-actions">
               <a className="primary-link" href="/review">Start a document review <span aria-hidden="true">→</span></a>
               <a className="primary-link" href="/standards">Upload standards <span aria-hidden="true">→</span></a>
             </div>
           </div>
           <aside className="review-brief" aria-labelledby="brief-title">
-            <h2 id="brief-title">What to bring to a review</h2>
+            <h2 id="brief-title">Why reviews need support</h2>
             <ul>
-              <li>System scope and intended users</li>
-              <li>Architecture diagram and data flows</li>
-              <li>Known risks and proposed controls</li>
-              <li>Open decisions and accountable owners</li>
+              <li>Architecture policies often exist in scattered artifacts.</li>
+              <li>Development teams don’t always know which policies apply to their proposed solution.</li>
+              <li>Architects manually review solution design documents.</li>
+              <li>Important questions can be overlooked, and reviews can be inconsistent.</li>
             </ul>
           </aside>
         </div>
@@ -85,7 +85,7 @@ function App({ path }) {
 }
 
 const path = window.location.pathname.replace(/\/$/, '');
-if (path === '/review') document.title = 'Document review | AIArchGovAsst';
-if (path === '/standards') document.title = 'Upload governance standards | AIArchGovAsst';
+if (path === '/review') document.title = 'Document review | AI Architecture Governance Assistant';
+if (path === '/standards') document.title = 'Upload governance standards | AI Architecture Governance Assistant';
 
 createRoot(document.getElementById('root')).render(<App path={path} />);

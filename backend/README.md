@@ -7,7 +7,7 @@ FastAPI serves a LangGraph document review workflow for the [React frontend](../
 | Architecture layer | Code |
 | --- | --- |
 | Web UI and API | The [React frontend](../frontend/README.md) calls the [FastAPI routes](governance/api/). [`main.py`](main.py) exposes the app, and [`application.py`](governance/application.py) configures CORS and initializes the in-memory checkpointer. |
-| Governance agent | [`graph.py`](governance/agent/graph.py) defines LangGraph sequencing and both approval checkpoints. [`documents.py`](governance/agent/documents.py) parses uploads, [`evidence.py`](governance/agent/evidence.py) validates model citations using the instructions in [`prompts.py`](governance/agent/prompts.py), and [`policy.py`](governance/agent/policy.py) calculates findings and risk. |
+| Governance agent | [`graph.py`](governance/agent/graph.py) defines LangGraph sequencing and both approval checkpoints. [`documents.py`](governance/agent/documents.py) parses uploads, [`retrieval.py`](governance/agent/retrieval.py) ranks design passages for each applicable rule, [`evidence.py`](governance/agent/evidence.py) extracts and verifies citations, and [`policy.py`](governance/agent/policy.py) calculates findings and risk. |
 | LLM provider | [`providers/openai.py`](governance/providers/openai.py) handles OpenAI embeddings and structured responses. |
 | Chroma standards store | [`ingestion.py`](governance/standards_store/ingestion.py) embeds and imports rule versions, [`catalog.py`](governance/standards_store/catalog.py) resolves applicable versions, and [`chroma.py`](governance/standards_store/chroma.py) configures the connection. |
 | Evaluation | [`metrics.py`](governance/evaluation/metrics.py) scores the report against the source and answer key, and [`judge.py`](governance/evaluation/judge.py) runs the optional LLM evaluation. |
@@ -57,7 +57,19 @@ From the clone root with the backend dependencies, OpenAI key, and Chroma connec
 .venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx
 ```
 
-For each rule ID, the review selects the latest version effective on or before the review date. It then checks every rule applicable to the selected document type. OpenAI extracts candidate quotes using a structured schema. The backend validates each quote against the normalized text of the cited PDF page or Word body block. The reviewer confirms the extraction before the policy engine produces findings. The assessed tier is the highest of the declared tier and the configured risks of rules with missing evidence. A second reviewer decision finalizes the report.
+### Retrieve evidence from the uploaded design
+
+For each rule ID, the review selects the latest version effective on or before the review date, then keeps every rule applicable to the selected document type. The extraction step groups short source sections into passages and splits long sections with overlap, preserving PDF page and Word body block labels.
+
+The backend embeds the passages and rule queries with OpenAI, then combines keyword and semantic rankings to select up to three passages per rule. OpenAI extracts structured candidate quotes. The backend verifies each quote against the passages supplied for that rule and retries rules without a verified quote against the full design. It goes directly to the full design when there are at most three passages or when ranking fails. Uploaded design passages and embeddings are used within the review request. The Chroma collection stores approved standards.
+
+The reviewer confirms the extraction before the policy engine produces findings. The assessed tier is the highest of the declared tier and the configured risks of rules with missing evidence. A second reviewer decision finalizes the report. See the [retrieval architecture](../ARCHITECTURE.md#rule-selection-and-evidence-retrieval).
+
+### Compare retrieval with the full-document baseline
+
+With `EVIDENCE_RETRIEVAL_MODE` unset, the backend uses passage retrieval. Set `EVIDENCE_RETRIEVAL_MODE` to `full_document` and restart the backend to send all applicable rules and the whole parsed design in a single extraction request.
+
+Review the same design in both modes using the same declared tier, standards date, approved standards, and OpenAI model. Confirm the evidence, export each report, and score both against the same human answer key using the [evaluation CLI](#evaluate-an-exported-report). Compare gap precision and recall, rule coverage, and citation validity. In the upload traces, compare total request duration and sum the Responses token counts across the extraction passes. Record embedding tokens separately.
 
 ## Document review API
 
@@ -122,7 +134,7 @@ If a standards upload returns HTTP 503 with `Could not import standards`, search
 
 If a document review reports `Could not read the approved standards collection.`, check the FastAPI deployment logs for `Standards read failed`. The entry gives the failed step and exception type. For a connection failure, check the private hostname, listening port, and Chroma deployment. If opening the collection fails because it is missing, confirm `CHROMA_STANDARDS_COLLECTION` and [import the approved standards](#upload-approved-standards-from-the-frontend) into that instance.
 
-Call `GET /api/reviews/sample` and look for the `generate_sample_review` span in the Arize project. For an uploaded document, look for `start_document_review`, then `confirm_evidence` and `approve_report` as you submit checkpoint decisions. These operations run in separate requests. Use the Arize Sessions view with the review ID to group their spans. Expand each request trace to see the LangGraph nodes (`prepare`, `extract`, `confirm`, `check`, `report`, and `approve`) that ran during that request. The upload trace also includes document parsing, Chroma rule retrieval under `prepare`, and the OpenAI Responses call under `extract`. Human checkpoint pauses are successful waits, marked with `review.waiting_for_decision`. Resuming a checkpoint re-runs that checkpoint node as part of the next request.
+Call `GET /api/reviews/sample` and look for the `generate_sample_review` span in the Arize project. For an uploaded document, look for `start_document_review`, then `confirm_evidence` and `approve_report` as you submit checkpoint decisions. These operations run in separate requests. Use the Arize Sessions view with the review ID to group their spans. Expand each request trace to see the LangGraph nodes (`prepare`, `extract`, `confirm`, `check`, `report`, and `approve`) that ran during that request. In the upload trace, `chroma.load_rules` is under `prepare`. Under `extract`, look for `design.rank_passages` and its embedding call when passage retrieval runs, `openai.responses.parse` for quote extraction, and `design.search_full_document` when the full design is checked. Human checkpoint pauses are successful waits, marked with `review.waiting_for_decision`. Resuming a checkpoint re-runs that checkpoint node as part of the next request.
 
 Document review spans record timing, operation status, the review ID, section and rule counts, and the model name and token usage returned by OpenAI. They exclude document contents, model prompts and responses, reviewer details, and exception messages. See [Arize AX tracing setup](https://arize.com/docs/ax/observe/tracing/setup/manual-instrumentation).
 

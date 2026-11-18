@@ -105,13 +105,58 @@ nav { font-size: .9rem; }
 .sample-header button:disabled { opacity: .65; cursor: wait; }
 .sample-error { color: #a12424; }
 
+.review-progress {
+  margin: 1rem 0 1.5rem;
+  padding: 1rem;
+  border: 1px solid #c6ddd0;
+  border-radius: .85rem;
+  background: #edf5ef;
+}
+.review-progress h2 { margin: 0 0 .65rem; font-size: 1.1rem; }
+.review-progress ol {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .55rem;
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+  counter-reset: review-stage;
+}
+.review-progress li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: start;
+  gap: .15rem .55rem;
+  padding: .65rem;
+  border: 1px solid #dce6df;
+  border-radius: .5rem;
+  background: #fff;
+  font-size: .9rem;
+}
+.review-progress li::before {
+  counter-increment: review-stage;
+  content: counter(review-stage);
+  align-self: start;
+  width: 1.5rem;
+  border-radius: 50%;
+  background: #e7eeea;
+  text-align: center;
+}
+.review-progress li span { grid-column: 2; color: #465a62; }
+.review-progress li[aria-current="step"] { border-color: #23654e; }
+.review-progress li[aria-current="step"]::before { background: #23654e; color: #fff; }
+.review-progress li:is([data-status="Passed"], [data-status="Complete"]) span { color: #23654e; }
+.review-progress li[data-status="Rejected"] span { color: #a12424; }
+
 @media (max-width: 45rem) {
   .hero-content, .review-grid { grid-template-columns: 1fr; }
   .header-content { flex-wrap: wrap; padding-block: .8rem; }
+  .review-progress ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 24rem) {
   nav { flex-wrap: wrap; }
+  .review-progress ol { grid-template-columns: 1fr; }
 }
 
 .review-form { display: grid; gap: 1rem; margin: 1rem 0; }
@@ -130,6 +175,14 @@ nav { font-size: .9rem; }
 .review-form .primary-link { justify-self: start; }
 .review-fields { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); }
 .field-hint { margin: -.6rem 0 0; }
+.evidence-note {
+  margin: 1rem 0;
+  padding: .85rem 1rem;
+  border: 1px solid #c6ddd0;
+  border-radius: .5rem;
+  background: #edf5ef;
+}
+.evidence-note p + p { margin-top: .4rem; }
 .findings { display: grid; gap: .75rem; margin: 1rem 0; }
 .findings p { overflow-wrap: anywhere; }
 .finding-comparison {

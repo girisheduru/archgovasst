@@ -1,13 +1,18 @@
-"""OpenAI API operations for rule embeddings and structured LLM responses."""
+"""OpenAI API operations for embeddings and structured LLM responses."""
 
 from openai import OpenAI
 
 from ..api.tracing import trace_operation
 
 
-def embed_texts(texts: list[str]) -> list[list[float]]:
-    with OpenAI(timeout=60) as client:
-        response = client.embeddings.create(model="text-embedding-3-small", input=texts)
+def embed_texts(texts: list[str], *, timeout=60, max_retries=2) -> list[list[float]]:
+    model = "text-embedding-3-small"
+    with trace_operation("openai.embeddings.create", "EMBEDDING", {
+        "embedding.model_name": model,
+        "embedding.input_count": len(texts),
+    }) as span, OpenAI(timeout=timeout, max_retries=max_retries) as client:
+        response = client.embeddings.create(model=model, input=texts)
+        span.set_attribute("embedding.token_count", response.usage.total_tokens)
     return [item.embedding for item in sorted(response.data, key=lambda item: item.index)]
 
 

@@ -2,11 +2,15 @@
 
 The React and Vite app presents the upload and review panels. The [FastAPI backend](../backend/README.md) runs LangGraph, reads the Chroma standards, and makes the OpenAI calls.
 
+The homepage introduces **AI Architecture Governance Assistant** through the problems of scattered policies, unclear applicability, manual document reviews, and inconsistent coverage. It highlights encryption, identity, networking, secrets, observability, and resiliency as topics to document for review against the imported standards.
+
 Select **Start a document review** on the homepage or **Document review** in the header to open `/review`. You can bookmark or refresh that page directly.
 
-1. Upload a text-based PDF or Word document and select its type and declared risk tier. The optional standards date selects effective rule versions.
+The **Review progress** banner shows completed stages and passed checkpoints, highlights the current and next stages, and marks the checkpoint where a rejected review stopped.
+
+1. Upload a text-based PDF or Word document and select its type and declared risk tier. The optional standards date selects effective rule versions. The review searches relevant design passages for every applicable rule and checks the full design for rules without a verified quote.
 2. Use **Standards comparison** to see the rule text, source standard, and effective date alongside evidence from the design. The page counts rules with evidence and flags missing evidence. Enter your reviewer name to confirm or reject the extraction.
-3. Review the assessed risk tier and cited findings, then approve or reject the report.
+3. Review the assessed risk tier and cited findings, then approve or reject the report. The note above the findings explains what design evidence shows and how evidence gaps can affect the assessed risk tier.
 4. Download the JSON decision record to keep a copy. Refreshing the same tab restores the review while the backend process is running. After a backend restart, upload the document to start a new review.
 
 ## Code layout

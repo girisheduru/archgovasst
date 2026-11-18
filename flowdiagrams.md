@@ -12,7 +12,7 @@ flowchart LR
     Review <-->|"Save and resume review state"| Memory["In-memory checkpointer"]
     Review -->|"Read applicable rules"| Chroma["Chroma standards store"]
     Import -->|"Write rule versions"| Chroma
-    Review -->|"Extract cited evidence"| OpenAI["OpenAI"]
+    Review -->|"Embed design passages and extract cited evidence"| OpenAI["OpenAI"]
     Import -->|"Embed rule text and evidence guidance"| OpenAI
     API -.->|"Optional review and sample traces"| Arize["Arize AX"]
 ```
@@ -42,9 +42,11 @@ The [review page](frontend/README.md) shows each checkpoint as the [review API](
 flowchart TD
     Upload["Upload a PDF or Word design and choose its type, declared tier, and optional standards date"] --> Parse["Extract text by PDF page or Word body block"]
     Parse --> Rules["Load the latest eligible version of each applicable rule from Chroma"]
-    Rules --> Extract["Ask OpenAI for candidate quotes and citations"]
-    Extract --> Validate["Check each quote against the cited page or block"]
-    Validate --> Evidence{"Checkpoint 1: Confirm evidence?"}
+    Rules --> Extract["Rank design passages for each rule and extract candidate quotes"]
+    Extract --> Validate["Verify each quote against its source passage"]
+    Validate -->|"Rules without verified quotes"| Full["Search the full design and verify any further quotes"]
+    Validate -->|"Rules with verified quotes"| Evidence{"Checkpoint 1: Confirm evidence?"}
+    Full --> Evidence
     Evidence -->|"Reject"| Rejected["End review as rejected"]
     Evidence -->|"Confirm"| Policy["Compute findings and assessed risk from the declared tier and rules with missing evidence"]
     Policy --> Report{"Checkpoint 2: Approve report?"}
@@ -52,7 +54,7 @@ flowchart TD
     Report -->|"Approve"| Approved["End review as approved"]
 ```
 
-On refresh, the browser uses the saved review ID to fetch the current state. A backend restart clears that state.
+The [retrieval architecture](ARCHITECTURE.md#rule-selection-and-evidence-retrieval) shows how every applicable rule stays in scope. On refresh, the browser uses the saved review ID to fetch the current state. A backend restart clears that state.
 
 ```mermaid
 flowchart LR
@@ -81,7 +83,7 @@ flowchart TD
 | Node | What it does |
 | --- | --- |
 | `prepare` | Loads the applicable rule versions from Chroma using the document type and standards date. |
-| `extract` | Calls OpenAI for candidate evidence, validates quoted text against the cited section, and sets the stage to `confirm_evidence`. |
+| `extract` | Ranks design passages per rule, verifies candidate quotes, searches the full design for unresolved rules, and sets the stage to `confirm_evidence`. |
 | `confirm` | Pauses for the evidence decision, appends it to the audit history, and sets the stage to `confirmed` or `rejected`. |
 | `check` | Applies policy rules to produce findings and calculate the assessed risk tier. |
 | `report` | Sets the stage to `approve_report` so the generated findings are ready for the next reviewer decision. |

@@ -1,6 +1,8 @@
-# Architecture Governance Assistant
+# AI Architecture Governance Assistant
 
-Architecture Governance Assistant reviews design documents against versioned governance standards. OpenAI extracts cited evidence, LangGraph pauses for two human decisions, and a deterministic policy check produces findings and a risk tier.
+Architecture policies often exist in scattered artifacts. Development teams don’t always know which policies apply to their proposed solution, while architects manually review solution design documents. Important questions around encryption, identity, networking, secrets, observability, and resiliency can be overlooked, and reviews can be inconsistent.
+
+AI Architecture Governance Assistant brings approved standards together and reviews design documents against every applicable, versioned governance rule. It searches relevant design passages first and checks the full design for rules without a verified quote. LangGraph pauses for two human decisions, and a deterministic policy check produces findings and a risk tier.
 
 ## Project components
 
@@ -15,4 +17,4 @@ For the full list of project commands, see the [command reference](COMMANDS.md).
 
 ## Architecture and workflows
 
-See the [architecture guide](flowdiagrams.md) for system and workflow diagrams, including the LangGraph nodes, edges, and reviewer checkpoints.
+See the [retrieval architecture](ARCHITECTURE.md#rule-selection-and-evidence-retrieval) for rule selection, passage search, and the full-design fallback. The [workflow diagrams](flowdiagrams.md) show the LangGraph nodes, edges, and reviewer checkpoints.
