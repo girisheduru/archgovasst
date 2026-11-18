@@ -27,3 +27,5 @@ For the full list of project commands, see the [command reference](COMMANDS.md).
 | `approve_report` | Pauses for a reviewer to approve or reject the report. |
 
 The [architecture diagram](ARCHITECTURE.md) shows where LangGraph fits in the system. The [retrieval architecture](ARCHITECTURE.md#rule-selection-and-evidence-retrieval) explains rule selection, passage search, and the full-design fallback. The [workflow diagrams](flowdiagrams.md#langgraph-nodes-and-edges) show the paths through both reviewer decisions.
+
+For a worked example of importing versioned rules and finding evidence in a design, see [RAG upload and retrieval](rag-upload-and-retrieval.md).
