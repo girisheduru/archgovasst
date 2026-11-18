@@ -188,38 +188,52 @@ Solid arrows are fixed edges registered with `add_edge`. The dashed arrows are t
 
 ### How a decision resumes the graph
 
-Both `confirm_evidence` and `approve_report` call `interrupt()`. LangGraph saves the paused state in the in-memory checkpointer under the review ID, which the API passes as the LangGraph thread ID. The decision endpoint checks that the submitted checkpoint is still pending, then resumes the same thread with `Command(resume=...)`. LangGraph re-enters the paused node and `interrupt()` returns the submitted decision.
+The graph pauses twice for a reviewer’s decision. The first pause confirms the evidence. The second approves the report.
+
+#### Pause for review
+
+The checkpoint node calls `interrupt()`. LangGraph saves the review state in backend memory, and the page shows what the reviewer needs to decide.
 
 ```mermaid
-sequenceDiagram
-    box rgb(219, 234, 254)
-        participant UI as Review page
-    end
-    box rgb(220, 252, 231)
-        participant API as FastAPI
-    end
-    box rgb(220, 252, 231)
-        participant Graph as LangGraph
-    end
-    box rgb(255, 237, 213)
-        participant Store as In-memory checkpointer
-    end
-    Graph->>Store: Save paused state under the review ID
-    Graph-->>API: Return state at the pending checkpoint
-    API-->>UI: Show evidence or report for review
-    UI->>API: POST the checkpoint decision
-    API->>Graph: Read current state for that review ID
-    Graph->>Store: Load saved state
-    Graph-->>API: Return current checkpoint
-    alt Checkpoint is still pending
-        API->>Graph: Resume the same thread with the decision
-        Graph->>Graph: Return decision from interrupt and follow the next edge
-        Graph-->>API: Return the next checkpoint or final state
-        API-->>UI: Show the updated review
-    else Checkpoint has already been decided
-        API-->>UI: Return HTTP 409 and prompt a refresh
-    end
+flowchart TD
+    Pause["Graph pauses"] --> Save["Save review state"]
+    Save --> Show["Show evidence or report"]
+
+    classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
+    classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    class Pause decision;
+    class Save store;
+    class Show user;
 ```
+
+#### Continue after a decision
+
+The reviewer submits a decision. FastAPI checks that the checkpoint is still pending, then passes the decision to the saved graph using `Command(resume=...)`.
+
+```mermaid
+flowchart TD
+    Submit["Reviewer submits decision"] --> Check["API checks pending checkpoint"]
+    Check --> Resume["Resume saved graph"]
+    Resume --> Continue["Continue with the decision"]
+
+    classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
+    classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
+    classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
+    class Submit user;
+    class Check,Resume process;
+    class Continue output;
+```
+
+LangGraph uses the review ID to find the saved state. It restarts the paused node, where `interrupt()` returns the submitted decision.
+
+| Decision | What happens next |
+| --- | --- |
+| Confirm evidence | Calculate findings and risk, then pause for report approval. |
+| Reject evidence | End the review as rejected. |
+| Approve or reject the report | End the review with that final decision. |
+
+If the checkpoint has already been decided, the API returns HTTP 409 and the reviewer must refresh the page. A backend restart clears the saved state, so the document must be uploaded again.
 
 ## Sample review
 
