@@ -5,10 +5,10 @@ export default function ReviewProgress({ review }) {
   const current = review?.stage ?? 'upload';
   const stopped = current === 'rejected';
   const stages = [
-    { id: 'upload', label: 'Upload design and search for evidence', complete: Boolean(review) },
-    { id: 'confirm_evidence', label: 'Confirm extracted evidence' },
-    { id: 'assess_risk', label: 'Compare standards and assess risk', complete: Boolean(review?.risk_tier) },
-    { id: 'approve_report', label: 'Approve review report' },
+    { id: 'upload', label: 'Upload and find evidence', complete: Boolean(review) },
+    { id: 'confirm_evidence', label: 'Confirm evidence' },
+    { id: 'assess_risk', label: 'Compare and assess risk', complete: Boolean(review?.risk_tier) },
+    { id: 'approve_report', label: 'Approve report' },
   ];
   const currentIndex = stages.findIndex(stage => stage.id === current);
   const next = currentIndex >= 0 ? stages[currentIndex + 1]?.id : undefined;
@@ -23,29 +23,20 @@ export default function ReviewProgress({ review }) {
     return 'Upcoming';
   }
 
-  const steps = (
-    <ol role="list">
-      {stages.map(stage => {
-        const status = statusFor(stage);
-        return (
-          <li key={stage.id} data-status={status} aria-current={status === 'Current' ? 'step' : undefined}>
-            <strong>{stage.label}</strong>
-            <span className="status-badge">{status}</span>
-          </li>
-        );
-      })}
-    </ol>
-  );
-
-  return review ? (
-    <details className="review-progress review-progress-compact">
-      <summary>Review progress</summary>
-      {steps}
-    </details>
-  ) : (
+  return (
     <section className="review-progress" aria-labelledby="review-progress-title">
       <h2 id="review-progress-title">Review progress</h2>
-      {steps}
+      <ol role="list">
+        {stages.map(stage => {
+          const status = statusFor(stage);
+          return (
+            <li key={stage.id} data-status={status} aria-current={status === 'Current' ? 'step' : undefined}>
+              <strong>{stage.label}</strong>
+              <span className="status-badge">{status}</span>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }

@@ -11,11 +11,36 @@ export function isDecisionPending(review) {
   return review?.stage === 'confirm_evidence' || review?.stage === 'approve_report';
 }
 
+function DecisionHistory({ audit }) {
+  return (
+    <details className="decision-history">
+      <summary>Decision history</summary>
+      <ol>
+        {audit.map(entry => {
+          const status = entry.decision === 'approve' ? 'Approved' : 'Rejected';
+          return (
+            <li key={entry.checkpoint}>
+              <strong>{checkpoints[entry.checkpoint]}</strong> · <span className="status-badge" data-status={status}>{status}</span> by {entry.reviewer}
+              {' · '}<time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
+              {entry.note && <p>{entry.note}</p>}
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
 function Findings({ review, pending, busy }) {
   const [evidence, setEvidence] = useState('');
   const [standard, setStandard] = useState('');
   const rows = review.findings.length ? review.findings : review.extraction;
   const evidenced = rows.filter(row => row.evidence).length;
+  const evidenceOptions = [
+    { value: '', label: `All statuses (${rows.length})` },
+    { value: 'evidenced', label: `With evidence (${evidenced})` },
+    { value: 'gap', label: `Not evidenced (${rows.length - evidenced})` },
+  ];
   const standards = [...new Set(rows.map(row => row.standard).filter(Boolean))].sort();
   const visibleRows = new Set(rows.filter(row =>
     (!evidence || Boolean(row.evidence) === (evidence === 'evidenced')) &&
@@ -26,14 +51,21 @@ function Findings({ review, pending, busy }) {
     <section className="standards-comparison" aria-labelledby="comparison-title">
       <h2 id="comparison-title">Standards comparison</h2>
       <div className="finding-filters">
-        <label>
-          Evidence status
-          <select value={evidence} onChange={event => setEvidence(event.target.value)}>
-            <option value="">All statuses ({rows.length})</option>
-            <option value="evidenced">With evidence ({evidenced})</option>
-            <option value="gap">Not evidenced ({rows.length - evidenced})</option>
-          </select>
-        </label>
+        <div className="evidence-filters" role="radiogroup" aria-labelledby="evidence-status-label">
+          <span id="evidence-status-label">Evidence status</span>
+          {evidenceOptions.map(({ value, label }) => (
+            <label key={value}>
+              <input
+                type="radio"
+                name="evidence-status"
+                value={value}
+                checked={evidence === value}
+                onChange={event => setEvidence(event.target.value)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
         {standards.length > 0 && (
           <label>
             Standard
@@ -47,12 +79,17 @@ function Findings({ review, pending, busy }) {
       <p className="findings-count" role="status">
         {visibleRows.size === 0 ? 'No findings match the current filters.' : `Showing ${visibleRows.size} of ${rows.length} rules`}
       </p>
-      {review.risk_tier && (
-        <details className="evidence-note">
-          <summary>How to read design evidence</summary>
-          <p><strong>With evidence</strong> means the review cites text in the uploaded design that supports the requirement. Confirming that the control is in place requires implementation evidence.</p>
-          <p><strong>Not evidenced</strong> means the review found no supporting quote it could verify in the uploaded design. The control may still be in place, but the evidence gap can raise the assessed risk tier.</p>
-        </details>
+      {(review.risk_tier || review.audit.length > 0) && (
+        <div className="review-reference">
+          {review.risk_tier && (
+            <details className="evidence-note">
+              <summary>How to read design evidence</summary>
+              <p><strong>With evidence</strong> means the review cites text in the uploaded design that supports the requirement. Confirming that the control is in place requires implementation evidence.</p>
+              <p><strong>Not evidenced</strong> means the review found no supporting quote it could verify in the uploaded design. The control may still be in place, but the evidence gap can raise the assessed risk tier.</p>
+            </details>
+          )}
+          {review.audit.length > 0 && <DecisionHistory audit={review.audit} />}
+        </div>
       )}
       <div className="findings">
         {/* Keep filtered rows mounted so their draft comments stay in the decision form. */}
@@ -64,7 +101,11 @@ function Findings({ review, pending, busy }) {
                 <span className="status-badge" data-status={row.evidence ? 'Evidenced' : 'Not evidenced'}>
                   {row.evidence ? 'Evidenced' : 'Not evidenced'}
                 </span>
-                {!row.evidence && row.gap_risk && <span>{row.gap_risk} risk</span>}
+                {!row.evidence && row.gap_risk && (
+                  <span className="status-badge" data-risk={row.gap_risk}>
+                    {row.gap_risk[0].toUpperCase() + row.gap_risk.slice(1)} risk
+                  </span>
+                )}
               </span>
             </summary>
             <div className="finding-details">
@@ -159,23 +200,6 @@ export default function ReviewPanel({
           {findings}
         </form>
       ) : findings}
-      {review.audit.length > 0 && (
-        <details className="decision-history">
-          <summary>Decision history</summary>
-          <ol>
-            {review.audit.map(entry => {
-              const status = entry.decision === 'approve' ? 'Approved' : 'Rejected';
-              return (
-                <li key={entry.checkpoint}>
-                  <strong>{checkpoints[entry.checkpoint]}</strong> · <span className="status-badge" data-status={status}>{status}</span> by {entry.reviewer}
-                  {' · '}<time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
-                  {entry.note && <p>{entry.note}</p>}
-                </li>
-              );
-            })}
-          </ol>
-        </details>
-      )}
     </>
   );
 }
