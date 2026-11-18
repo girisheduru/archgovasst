@@ -28,6 +28,10 @@ Run these commands from the clone root with Python 3.11 or newer. The setup comm
 
 Open [the interactive API docs](http://127.0.0.1:8000/docs) while the server is running.
 
+## Verify review tracing
+
+From the clone root, run `.venv/bin/python -m unittest discover -s backend/tests -v` after installing the backend dependencies and `httpx` (used by FastAPI's test client). This checks the trace hierarchy through the API and the real LangGraph, checkpoint resumes, session grouping, error status, and disabled tracing. OpenAI and Chroma are mocked, and spans are collected in memory.
+
 ## Import standards and evaluate a review
 
 From the clone root, install the backend dependencies and configure Chroma before running these commands. Import and optional judging also require `OPENAI_API_KEY` in the shell environment. See the [backend guide](backend/README.md) for file formats.

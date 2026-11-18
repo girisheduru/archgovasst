@@ -12,7 +12,7 @@ from ..agent.documents import MAX_UPLOAD_BYTES, parse_document
 from ..agent.evidence import ModelUnavailable
 from ..standards_store.catalog import StandardsUnavailable
 from ..standards_store.models import DocumentType, RiskTier
-from .tracing import trace_review
+from .tracing import trace_operation, trace_review
 
 router = APIRouter(prefix="/api/reviews", tags=["Document reviews"])
 
@@ -73,7 +73,9 @@ def start_review(
         if len(payload) > MAX_UPLOAD_BYTES:
             raise HTTPException(413, "Upload a document of at most 10 MB.")
         try:
-            sections = parse_document(filename, payload)
+            with trace_operation("parse_document", "TOOL") as span:
+                sections = parse_document(filename, payload)
+                span.set_attribute("document.section_count", len(sections))
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
         except Exception as exc:

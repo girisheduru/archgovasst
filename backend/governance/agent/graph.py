@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from ..api.tracing import trace_node
 from ..standards_store.catalog import load_rules
 from .evidence import extract
 from .policy import check
@@ -49,7 +50,7 @@ def after_confirmation(state: State):
 def compile_workflow(checkpointer):
     graph = StateGraph(State)
     for node in (prepare, extract, confirm, check, report, approve):
-        graph.add_node(node.__name__, node)
+        graph.add_node(node.__name__, trace_node(node))
     graph.add_edge(START, "prepare")
     graph.add_edge("prepare", "extract")
     graph.add_edge("extract", "confirm")
