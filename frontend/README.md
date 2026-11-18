@@ -6,7 +6,7 @@ The homepage introduces **AI Architecture Governance Assistant** through the pro
 
 Select **Start a document review** on the homepage or **Document review** in the header to open `/review`. You can bookmark or refresh that page directly.
 
-**Review progress** shows all four stages throughout the review. The progress indicators use green for completed stages and passed checkpoints, blue for the current stage, purple for the next stage, red for rejection, and gray for stages that are upcoming or were skipped. Decision buttons and recorded outcomes use green for approval and red for rejection.
+The **Review progress** banner shows all four stages and identifies the current checkpoint. The progress indicators use green for completed stages and passed checkpoints, blue for the current stage, purple for the next stage, red for rejection, and gray for stages that are upcoming or were skipped. Decision buttons and recorded outcomes use green for approval and red for rejection.
 
 1. Upload a text-based PDF or Word document and select its type and declared risk tier. The optional standards date selects effective rule versions. The review searches relevant design passages for every applicable rule and checks the full design for rules without a verified quote.
 2. Browse **Standards comparison** with all rules visible by default. The **Evidence status** options and their counts are always visible. Use them with the adjacent **Standard** filter to narrow the list. Expand any finding to see the rule text, effective date, and design evidence. Enter your name in **Record decision** to confirm or reject the extraction. The form is always expanded and stays at the top of the viewport while you scroll on larger screens.

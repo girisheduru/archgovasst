@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 
 const checkpoints = {
   confirm_evidence: 'Confirm extracted evidence',
-  approve_report: '2. Approve the review report',
+  approve_report: 'Approve the review report',
   approved: 'Review approved',
   rejected: 'Review rejected',
 };
@@ -164,7 +164,7 @@ export default function ReviewPanel({
     <>
       <div className="sample-header">
         <div>
-          <h2 data-status={outcome}>{checkpoints[review.stage]}</h2>
+          {outcome && <h2 data-status={outcome}>{checkpoints[review.stage]}</h2>}
           <p>{review.filename} · Standards as of {review.as_of}</p>
           <p>Declared tier: <strong>{review.declared_tier}</strong>
             {review.risk_tier && <> · Assessed tier: <strong>{review.risk_tier}</strong></>}
