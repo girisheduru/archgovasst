@@ -39,13 +39,15 @@ curl http://127.0.0.1:8000/api/reviews/sample
 
 ### Upload approved standards from the frontend
 
-Set `STANDARDS_IMPORT_TOKEN` to a strong secret in the backend process environment or Railway service variables, then restart or redeploy. Share it only with standards maintainers. The `/standards` form sends the entered token as a bearer credential to `POST /api/standards/import`. An empty backend value disables this endpoint.
+Set `STANDARDS_IMPORT_TOKEN` to a strong secret in the backend process environment or Railway service variables, then restart or redeploy. Share it only with standards maintainers. The `/standards` form sends the entered token as a bearer credential for import and reset requests. An empty backend value disables both endpoints.
 
 The form accepts up to 10 approved Word (.docx) standards, each up to 10 MB and 20 MB combined, with at most 200 rules per import. The backend extracts rule IDs, statements, evidence guidance, and effective dates directly from the documents. Use the [bundled Word template format](standards/README.md).
 
-Both the form and CLI overwrite any stored rule with a matching ID and effective date, including its metadata and embedding. A different effective date creates a separate version. On success the API returns `added` and `updated` counts. It returns HTTP 422 if a rule ID and effective date appear more than once in the upload, and HTTP 503 if embedding or storage fails.
+Both the form and CLI overwrite any stored rule with a matching ID and effective date, including its metadata and embedding. A different effective date creates a separate version. On success `POST /api/standards/import` returns `added` and `updated` counts. It returns HTTP 422 if a rule ID and effective date appear more than once in the upload, and HTTP 503 if embedding or storage fails.
 
 If the upload says OpenAI rejected the backend credentials, set a valid `OPENAI_API_KEY` on the FastAPI service, then redeploy and retry the upload. Locally, set the key in the shell that starts Uvicorn and restart the backend. The import fails before writing rule versions to Chroma.
+
+After the maintainer confirms the reset in the browser, `POST /api/standards/clear` deletes the configured Chroma standards collection, including all rule versions and embeddings. It returns `{"cleared": true}` after deletion, `{"cleared": false}` if the collection is already absent, and HTTP 503 if Chroma cannot complete the request. The next import recreates the collection.
 
 ### Configure the standards store
 

@@ -19,15 +19,17 @@ Expand **Review progress** after uploading to see all stages. The progress indic
 - [`main.jsx`](src/main.jsx) selects the homepage or the dedicated document review page based on the URL.
 - [`DocumentReview.jsx`](src/components/DocumentReview.jsx) manages review state and coordinates the [upload panel](src/components/UploadPanel.jsx) and [review panel](src/components/ReviewPanel.jsx).
 - [`api/reviews.js`](src/api/reviews.js) handles document review requests and API errors.
-- [`StandardsUpload.jsx`](src/components/StandardsUpload.jsx) submits approved Word standards from `/standards`.
+- [`StandardsUpload.jsx`](src/components/StandardsUpload.jsx) imports approved Word standards and clears the RAG database from `/standards`.
 
 ## Upload standards
 
-Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. The form shows how many rule versions were added and how many were overwritten. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. Use the [bundled standards format](../backend/standards/README.md).
+Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. The form lists every selected file and, after a successful import, shows the imported filenames and the counts of rule versions added and overwritten. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. Use the [bundled standards format](../backend/standards/README.md).
 
 If the form says OpenAI rejected the backend credentials, have the backend administrator check `OPENAI_API_KEY` before retrying. See the [backend setup guide](../backend/README.md#upload-approved-standards-from-the-frontend).
 
 Chroma overwrites a stored rule when the uploaded rule has the same ID and **Effective date**. Include each rule version once per upload.
+
+To delete all stored standards and their embeddings, enter the same token, select **Clear RAG database**, and confirm the deletion. The page reports whether the collection was cleared or already empty. Import approved standards again before starting a new document review.
 
 ## Run locally
 

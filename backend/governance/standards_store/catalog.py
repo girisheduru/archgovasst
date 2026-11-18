@@ -4,6 +4,8 @@ from datetime import date
 from logging import getLogger
 from os import getenv
 
+from chromadb.errors import NotFoundError
+
 from ..api.tracing import trace_operation
 from .chroma import connect_chroma
 from .models import DocumentType, Rule
@@ -32,7 +34,12 @@ def load_rules(as_of: date, document_type: DocumentType) -> list[dict]:
         try:
             client = standards_client()
             step = "open the collection"
-            collection = client.get_collection(collection_name(), embedding_function=None)
+            try:
+                collection = client.get_collection(collection_name(), embedding_function=None)
+            except NotFoundError as exc:
+                raise StandardsUnavailable(
+                    "No governance standards are stored. Import approved standards before starting a review."
+                ) from exc
             step = "query rule versions"
             rows = collection.get(
                 where={"effective_date": {"$lte": as_of.toordinal()}},

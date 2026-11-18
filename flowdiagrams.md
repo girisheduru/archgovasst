@@ -20,13 +20,13 @@ Node labels and arrow labels also identify each step and decision.
 ```mermaid
 flowchart LR
     User["Reviewer or standards maintainer"] --> UI["React frontend"]
-    UI -->|"Uploads and decisions"| API["FastAPI"]
-    API -->|"Checkpoints, reports, and import results"| UI
+    UI -->|"Uploads, decisions, and confirmed standards resets"| API["FastAPI"]
+    API -->|"Checkpoints, reports, and standards results"| UI
     API --> Review["LangGraph review"]
-    API --> Import["Standards import"]
+    API --> Import["Standards import and reset"]
     Review <-->|"Save and resume review state"| Memory["In-memory checkpointer"]
     Review -->|"Read applicable rules"| Chroma["Chroma standards store"]
-    Import -->|"Write rule versions"| Chroma
+    Import -->|"Write rule versions or delete the standards collection"| Chroma
     Review -->|"Embed design passages and extract cited evidence"| OpenAI["OpenAI"]
     Import -->|"Embed rule text and evidence guidance"| OpenAI
     API -.->|"Optional review and sample traces"| Arize["Arize AX"]
@@ -53,7 +53,7 @@ The [standards upload page and CLI](backend/README.md#configure-document-reviews
 
 ```mermaid
 flowchart TD
-    Web["Upload approved Word standards at /standards"] --> Auth["Check the import token"]
+    Web["Select Word standards and display all filenames at /standards"] --> Auth["Check the import token"]
     CLI["Run the standards import CLI with Word files"] --> Parse["Extract rule IDs, effective dates, statements, and evidence guidance"]
     Auth --> Parse
     Parse --> Duplicate{"Duplicate rule ID and effective date in the import?"}
@@ -77,6 +77,17 @@ flowchart TD
     class Embed llm;
     classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
     class Result output;
+```
+
+### RAG database reset
+
+```mermaid
+flowchart LR
+    Clear["Select Clear RAG database"] --> Confirm{"Confirm permanent deletion?"}
+    Confirm -->|"Cancel"| Cancel["Show cancellation"]
+    Confirm -->|"Confirm"| Auth["Check the import token"]
+    Auth --> Delete["Delete the configured Chroma standards collection"]
+    Delete --> Result["Report cleared, already empty, or failed"]
 ```
 
 ## Document review

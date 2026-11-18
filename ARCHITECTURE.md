@@ -27,7 +27,7 @@ Approved Word standards enter through the token-protected upload API or the CLI.
 
 ```mermaid
 flowchart TD
-    Web["Upload approved Word standards at /standards"] --> Auth["Check the import token"]
+    Web["Select Word standards and display all filenames at /standards"] --> Auth["Check the import token"]
     CLI["Run the standards import CLI with Word files"] --> Parse["Extract rule IDs, effective dates, statements, and evidence guidance"]
     Auth --> Parse
     Parse --> Duplicate{"Duplicate rule ID and effective date in the import?"}
@@ -52,6 +52,8 @@ flowchart TD
     classDef output fill:#ccfbf1,stroke:#0f766e,color:#134e4a,stroke-width:2px;
     class Result output;
 ```
+
+Standards maintainers can also clear the configured Chroma standards collection from `/standards`. The browser asks for confirmation and the backend validates the import token before deleting the rule versions and their embeddings. The next import recreates the collection. See the [reset workflow](flowdiagrams.md#rag-database-reset).
 
 ## Rule selection and evidence retrieval
 

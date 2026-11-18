@@ -209,6 +209,9 @@ nav { font-size: .9rem; }
 }
 
 .review-form { display: grid; gap: 1rem; margin: 1rem 0; }
+.standards-files { overflow-wrap: anywhere; }
+.standards-files p { font-weight: 600; }
+.standards-files ul { margin: .25rem 0 0; padding-left: 1.5rem; }
 .review-form label, .finding-comment label { display: grid; gap: .4rem; font-weight: 600; }
 .review-form :is(input, select, textarea), .finding-comment textarea {
   color: inherit;

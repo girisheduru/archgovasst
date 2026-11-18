@@ -28,9 +28,9 @@ Run these commands from the clone root with Python 3.11 or newer. The setup comm
 
 Open [the interactive API docs](http://127.0.0.1:8000/docs) while the server is running.
 
-## Verify review tracing
+## Run backend tests
 
-From the clone root, run `.venv/bin/python -m unittest discover -s backend/tests -v` after installing the backend dependencies and `httpx` (used by FastAPI's test client). This checks the trace hierarchy through the API and the real LangGraph, checkpoint resumes, session grouping, error status, and disabled tracing. OpenAI and Chroma are mocked, and spans are collected in memory.
+From the clone root, run `.venv/bin/python -m unittest discover -s backend/tests -v` after installing the backend dependencies and `httpx` (used by FastAPI's test client). The suite covers review tracing, evidence retrieval, and standards reset authorization and outcomes. Tests mock OpenAI and Chroma where needed and collect traces in memory.
 
 ## Import standards and evaluate a review
 
