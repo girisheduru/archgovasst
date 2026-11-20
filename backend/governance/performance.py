@@ -8,7 +8,8 @@ from tempfile import NamedTemporaryFile
 from typing import Literal
 
 ReportKind = Literal["assets", "benchmark", "fixtures", "tests"]
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = BACKEND_ROOT.parent if (BACKEND_ROOT.parent / "frontend").is_dir() else BACKEND_ROOT
 
 
 def report_path(kind: ReportKind) -> Path:

@@ -62,7 +62,7 @@
   font-weight: 750;
   font-variant-numeric: tabular-nums;
 }
-.performance-panel, .performance-instructions {
+.performance-panel {
   min-width: 0;
   padding: clamp(1rem, 3vw, 1.65rem);
   border: 1px solid #dce6df;
@@ -89,7 +89,13 @@
   color: #182832;
   font: inherit;
 }
-.performance-run-form button { justify-self: start; }
+.performance-action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: .65rem;
+}
+.performance-action-buttons button { width: 100%; min-height: 2.75rem; }
+.performance-action-buttons small { display: block; margin-top: .25rem; color: #465a62; }
 .performance-assets { margin: 0; }
 .performance-assets > div { padding: .55rem 0; border-top: 1px solid #dce6df; }
 .performance-assets dt { color: #465a62; font-size: .8rem; font-weight: 700; }
@@ -138,14 +144,8 @@
 .performance-table thead { background: #eff5f0; }
 .performance-tier { text-transform: capitalize; }
 .performance-table [data-discrepancy="true"] { color: #8a3c11; font-weight: 700; }
-.performance-panel code, .performance-instructions code { overflow-wrap: anywhere; }
-
-.performance-instructions { margin-top: 1.25rem; }
+.performance-panel code { overflow-wrap: anywhere; }
 .performance-dashboard summary { font-weight: 700; cursor: pointer; }
-.performance-instructions p { margin-top: .5rem; }
-.performance-instructions dl { margin-bottom: 0; }
-.performance-instructions dt { margin-top: .65rem; font-weight: 650; }
-.performance-instructions dd { margin: 0; }
 
 @media (max-width: 48rem) {
   .performance-columns { grid-template-columns: 1fr; }

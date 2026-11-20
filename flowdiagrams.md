@@ -274,17 +274,21 @@ flowchart LR
 
 ## Performance dashboard
 
-Startup publication, benchmark runs, and test commands save the latest result for each check. The browser polls for updates during startup publication and benchmark runs. [Backend reporting setup](backend/README.md#performance-dashboard)
+Startup publication and dashboard actions save the latest result for each check. The browser polls for updates during startup publication and while an action runs. [Backend reporting setup](backend/README.md#performance-dashboard)
 
 ```mermaid
 flowchart LR
     Benchmark["Publish assets and run Arize AX benchmark"] --> Reports["Latest JSON summaries"]
     Startup["Publish full dataset and Prompt Hub templates at startup"] --> Reports
+    Publish["Publish full dataset and Prompt Hub templates on demand"] --> Reports
     Validate["Successful benchmark fixture validation"] --> Reports
-    Tests["Backend test suite outcome"] --> Reports
+    Tests["Backend test suite in a separate Python process"] --> Reports
     Dashboard["Performance page"] -->|"GET /api/performance"| API["FastAPI"]
-    Dashboard -->|"POST /api/performance/benchmark with token"| API
-    API -->|"Start one background run"| Benchmark
+    Dashboard -->|"Start a dashboard action with a token"| API
+    API --> Benchmark
+    API --> Publish
+    API --> Tests
+    API --> Validate
     Reports --> API
     API -->|"Saved result or report status"| Dashboard
 ```

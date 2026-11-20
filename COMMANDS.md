@@ -49,7 +49,7 @@ Run from the clone root with the backend dependencies installed. The [backend gu
 | `.venv/bin/python -m backend.governance.evaluate` | Runs the complete 24-design benchmark with the same prerequisites. Use `--experiment NAME` to name the run. |
 | `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores a previously exported report. Requires a Chroma connection. Add `--supporting-document PATH` for each cited supporting file. Append `--judge` for optional OpenAI scoring with `OPENAI_API_KEY`. |
 
-The **Run benchmark** form on `/performance` uses the same prerequisites and a backend-configured `PERFORMANCE_RUN_TOKEN`. [Backend reporting setup](backend/README.md#performance-dashboard)
+The **Performance** page offers buttons for the benchmark, publishing, application tests, and fixture validation. The buttons share a backend-configured `PERFORMANCE_RUN_TOKEN`. The commands remain available for terminal and CI use. [Backend reporting setup](backend/README.md#performance-dashboard)
 
 ## Run the sample review backend
 

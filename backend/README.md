@@ -112,13 +112,20 @@ In Arize AX, inspect missed and unexpected rule IDs for each design. Compare gap
 
 ## Performance dashboard
 
-The **Performance** page shows widgets for scores, Arize publications, application tests, and fixture validation. Install the backend requirements and configure `ARIZE_SPACE_ID` with `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY` to enable automatic startup publication. To also enable **Run benchmark**, configure `OPENAI_API_KEY` and a private `PERFORMANCE_RUN_TOKEN`. After restarting the service, enter that token in the form. Start with **Smoke test**, then run the full benchmark as needed. Live document reviews send telemetry to the configured trace project.
+Install the backend requirements and set a private `PERFORMANCE_RUN_TOKEN` on the backend. After restarting the service, enter that token on the **Performance** page to use the dashboard actions.
 
-The page starts a run with `POST /api/performance/benchmark?scope=smoke` (or `scope=full`) and a bearer token. The backend accepts one dashboard run per process after startup publication finishes. Run the dashboard backend with a single worker and replica so polling and run controls share one job state. A process restart ends the in-flight job. Completed reports and IDs saved before a failure remain visible. The page polls `GET /api/performance` during a benchmark or startup publication. The response includes `job` and `arize_publication` statuses and an entry for each of `assets`, `benchmark`, `tests`, and `fixtures`. Each report entry is `pending` before its first report, `available` with a `report` when saved, or `unavailable` if it cannot be read.
+| Dashboard action | API endpoint | Requirements |
+| --- | --- | --- |
+| **Run AI benchmark** | `POST /api/performance/benchmark?scope=smoke` or `scope=full` | OpenAI key, Arize publishing credentials, and evaluation dependencies. |
+| **Publish Arize assets** | `POST /api/performance/publish` | Arize publishing credentials and evaluation dependencies. Publishes the full dataset and Prompt Hub templates. |
+| **Run application tests** | `POST /api/performance/tests` | Backend dependencies and `httpx`. The suite runs in an isolated Python process and saves pass or fail counts. |
+| **Validate benchmark fixtures** | `POST /api/performance/fixtures` | The Excel reader from the backend requirements. Validates the full bundle and saves fixture counts. |
 
-Both a benchmark run and the validation-only command save workbook and fixture counts. Run `.venv/bin/python -m backend.governance.run_application_tests` from the clone root with the backend dependencies and `httpx` installed to save the latest backend test outcomes. Run those checks in a terminal or CI job and refresh the dashboard afterwards.
+Set `ARIZE_SPACE_ID` and either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY` for publication and benchmarks. The same settings enable startup publication. Both local checks can run without Arize or OpenAI configuration.
 
-Reports are saved in the ignored `.performance/` directory at the clone root by default. Set `PERFORMANCE_REPORT_DIR` to a shared absolute directory for the backend and the processes that generate reports. On a hosted backend, use a persistent volume or deploy the report files with the service. The API exposes summaries to anyone who can access it. Reports contain benchmark IDs, scores, and test outcomes. They exclude credentials, design text, extracted quotes, and test tracebacks.
+Each action uses bearer-token authentication. The backend accepts one dashboard action per process at a time. Publishing and benchmarking wait for startup publication to finish. Run the dashboard backend with a single worker and replica so polling and controls share one job state. A process restart ends the in-flight job. Completed reports and IDs saved before a failure remain visible. The page polls `GET /api/performance` while an action or startup publication runs. The response includes per-action availability, `job` and `arize_publication` statuses, and entries for `assets`, `benchmark`, `tests`, and `fixtures`. Each report entry is `pending` before its first report, `available` with a `report` when saved, or `unavailable` if it cannot be read.
+
+Reports are saved in the ignored `.performance/` directory at the clone root by default, or in the backend directory when deployed by itself. Set `PERFORMANCE_REPORT_DIR` to a shared absolute directory for the backend and any separate CLI or CI jobs. On a hosted backend, use a persistent volume or deploy the report files with the service. The API exposes summaries to anyone who can access it. Reports contain benchmark IDs, scores, and test outcomes. They exclude credentials, design text, extracted quotes, and test tracebacks.
 
 On Railway with `/backend` as the service root, redeploy with the updated `requirements.txt` and configured backend variables.
 

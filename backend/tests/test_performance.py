@@ -13,6 +13,7 @@ from backend.governance.application import app
 from backend.governance.evaluation import publish
 from backend.governance.evaluation.dataset import DesignCase
 from backend.governance.evaluation.metrics import AnswerKey
+from backend.governance.performance import save_report
 
 
 class PerformanceTests(unittest.TestCase):
@@ -88,6 +89,44 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(self.client.post(url).status_code, 401)
         performance.update_job("running", "Testing concurrent request")
         self.assertEqual(self.client.post(url, headers=self.headers).status_code, 409)
+        self.sdk.assert_not_called()
+
+    def test_publish_action_uses_the_full_dataset_without_running_a_benchmark(self):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": ""}):
+            response = self.client.post("/api/performance/publish", headers=self.headers)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["action"], "publish")
+        self.assertEqual(len(self.dataset.call_args.args[2]["examples"]), 2)
+        self.assertEqual(self.prompt.call_count, 4)
+        result = self.client.get("/api/performance").json()
+        self.assertEqual(result["job"]["status"], "complete")
+        self.assertEqual(result["assets"]["report"]["dataset_id"], "dataset-id")
+        self.experiment.assert_not_called()
+
+    def test_fixture_and_application_checks_work_without_service_credentials(self):
+        def failing_tests():
+            save_report("tests", {"passed": False, "tests_run": 1, "failures": 1})
+            return 1
+
+        with (
+            patch.dict("os.environ", {
+                "ARIZE_SPACE_ID": "", "ARIZE_EVAL_API_KEY": "", "ARIZE_API_KEY": "", "OPENAI_API_KEY": "",
+            }),
+            patch.object(performance, "run_in_subprocess", side_effect=failing_tests) as tests,
+        ):
+            self.assertEqual(self.client.post("/api/performance/fixtures", headers=self.headers).status_code, 202)
+            result = self.client.get("/api/performance").json()
+            self.assertEqual(result["job"]["action"], "fixtures")
+            self.assertEqual(result["job"]["status"], "complete")
+            self.assertEqual(result["fixtures"]["report"]["case_count"], 2)
+            self.assertEqual(self.client.post("/api/performance/tests").status_code, 401)
+            self.assertEqual(self.client.post("/api/performance/tests", headers=self.headers).status_code, 202)
+            result = self.client.get("/api/performance").json()
+
+        tests.assert_called_once_with()
+        self.assertEqual(result["job"]["action"], "tests")
+        self.assertEqual(result["job"]["status"], "failed")
+        self.assertFalse(result["tests"]["report"]["passed"])
         self.sdk.assert_not_called()
 
     async def wait_for_startup_publication(self):

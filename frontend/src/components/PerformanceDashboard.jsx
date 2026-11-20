@@ -14,6 +14,12 @@ const metrics = [
 const percentage = new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 });
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 const pending = { status: 'pending' };
+const actions = [
+  ['benchmark', 'Run AI benchmark'],
+  ['publish', 'Publish Arize assets'],
+  ['tests', 'Run application tests'],
+  ['fixtures', 'Validate benchmark fixtures'],
+];
 
 function RunTime({ timestamp }) {
   return <time dateTime={timestamp}>{dateFormat.format(new Date(timestamp))}</time>;
@@ -230,21 +236,22 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
     setRequest(value => value + 1);
   }
 
-  async function startBenchmark(event) {
+  async function startAction(event) {
     event.preventDefault();
+    const action = event.nativeEvent.submitter?.value || 'benchmark';
+    const query = action === 'benchmark' ? `?scope=${scope}` : '';
     setSubmitting(true);
     setRunError('');
     try {
-      const response = await fetch(`${apiBaseUrl}/api/performance/benchmark?scope=${scope}`, {
+      const response = await fetch(`${apiBaseUrl}/api/performance/${action}${query}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token.trim()}` },
         signal: AbortSignal.timeout(10000),
       });
       const result = await response.json().catch(() => null);
       if (!response.ok || result?.status !== 'running') {
-        throw new Error(typeof result?.detail === 'string' ? result.detail : 'Could not start the benchmark.');
+        throw new Error(typeof result?.detail === 'string' ? result.detail : 'Could not start the action.');
       }
-      setToken('');
       setReports(previous => ({ ...previous, job: result }));
       refresh();
     } catch (failure) {
@@ -259,7 +266,13 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
   const tests = reports?.tests ?? pending;
   const fixtures = reports?.fixtures ?? pending;
   const assets = reports?.assets ?? pending;
-  const canRun = Boolean(reports?.job && !reports.runner_unavailable && !isPublishing);
+  const availability = reports?.actions ?? (reports?.job ? { benchmark: reports.runner_unavailable } : null);
+  const controlsUnavailable = reports?.controls_unavailable;
+  const busy = isRunning || submitting;
+  const jobMessage = isRunning ? `${job.phase}…` : job?.message ?? (
+    job?.status === 'complete' ? 'Benchmark finished.' :
+    job?.status === 'failed' ? 'Benchmark failed. Check the backend logs.' : ''
+  );
   return (
     <div className="shell performance-dashboard">
       <div className="performance-header">
@@ -283,34 +296,46 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
           <section className="performance-panel">
             <div className="performance-panel-header">
               <div>
-                <h2>Run an evaluation</h2>
-                <p>Publish the dataset and prompt templates, then score the bundled designs with OpenAI.</p>
+                <h2>Run evaluations and checks</h2>
               </div>
             </div>
-            <form className="performance-run-form" onSubmit={startBenchmark}>
-              <label>Designs
-                <select value={scope} onChange={event => setScope(event.target.value)} disabled={!canRun || isRunning}>
+            <form className="performance-run-form" onSubmit={startAction}>
+              <label>Performance run token
+                <input required type="password" value={token} autoComplete="off"
+                  onChange={event => setToken(event.target.value)} disabled={!availability || Boolean(controlsUnavailable) || busy} />
+              </label>
+              <label>Benchmark scope
+                <select value={scope} onChange={event => setScope(event.target.value)}
+                  disabled={!availability || Boolean(controlsUnavailable || availability.benchmark) || busy || isPublishing}>
                   <option value="smoke">Smoke test · 1 design</option>
                   <option value="full">Full benchmark · All designs</option>
                 </select>
               </label>
-              <label>Performance run token
-                <input required type="password" value={token} autoComplete="off"
-                  onChange={event => setToken(event.target.value)} disabled={!canRun || isRunning} />
-              </label>
-              <button type="submit" disabled={!canRun || isRunning || submitting || !token.trim()}>
-                {isRunning ? 'Benchmark running…' : submitting ? 'Starting…' : 'Run benchmark'}
-              </button>
+              <div className="performance-action-buttons">
+                {actions.map(([action, label]) => {
+                  const needsArize = action === 'benchmark' || action === 'publish';
+                  const reason = availability && (
+                    action in availability ? availability[action] : 'Update the backend to enable this action.'
+                  );
+                  return (
+                    <div key={action}>
+                      <button type="submit" value={action}
+                        disabled={!availability || Boolean(controlsUnavailable || reason) || busy ||
+                          !token.trim() || (needsArize && isPublishing)}>
+                        {label}
+                      </button>
+                      {reason && !controlsUnavailable && <small>{reason}</small>}
+                    </div>
+                  );
+                })}
+              </div>
             </form>
             <p className="performance-caption" role="status">
-              {reports?.runner_unavailable || (!loading && !reports?.job && 'Connect to an updated backend to start runs here.')}
-              {isPublishing && !reports.runner_unavailable && 'Benchmark runs are available after startup publication finishes.'}
-              {isRunning && `${job.phase}…`}
-              {job?.status === 'complete' && 'Benchmark finished. The latest results are shown below.'}
-              {job?.status === 'failed' && `Benchmark failed during ${job.phase.toLowerCase()}. Check the backend logs and credentials.`}
+              {jobMessage || controlsUnavailable ||
+                (isPublishing ? 'Arize actions are available after startup publication finishes.' :
+                  !loading && !availability && 'Connect to the backend to run these actions.')}
             </p>
             {runError && <p className="sample-error" role="alert">{runError}</p>}
-            <p className="performance-caption">Document reviews send telemetry to the configured Arize trace project.</p>
           </section>
           <ArizeAssets assets={assets} benchmark={benchmark} publication={publication} />
         </div>
@@ -340,20 +365,6 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
           </ReportSection>
         </div>
       </div>
-      <details className="performance-instructions">
-        <summary>How to generate results</summary>
-        <p>Run these commands from the repository root in the backend environment, then refresh this page.</p>
-        <dl>
-          <dt>Publish assets and run the AI benchmark with OpenAI and Arize AX configured</dt>
-          <dd><code>.venv/bin/python -m backend.governance.evaluate</code></dd>
-          <dt>Publish the dataset and Prompt Hub templates independently</dt>
-          <dd><code>.venv/bin/python -m backend.governance.evaluation.publish</code></dd>
-          <dt>Application tests with backend dependencies and httpx installed</dt>
-          <dd><code>.venv/bin/python -m backend.governance.run_application_tests</code></dd>
-          <dt>Benchmark fixture validation with evaluation dependencies installed</dt>
-          <dd><code>.venv/bin/python -m backend.governance.evaluate --validate-only</code></dd>
-        </dl>
-      </details>
     </div>
   );
 }

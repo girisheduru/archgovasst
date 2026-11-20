@@ -22,7 +22,7 @@ Expand a **Not evidenced** finding and select **Suggest next step** for AI-gener
 
 Select **Performance** in the header to open `/performance`. Overview tiles show the latest design, prompt, and test counts. The AI benchmark tiles show quality scores when a run completes, alongside model, retrieval mode, and per-design results. The **Arize AX assets** panel shows startup publication progress, the space, dataset, Prompt Hub versions, and latest experiment.
 
-Enter the configured performance run token and select **Run benchmark** to publish the dataset and templates and run the evaluation. The page refreshes automatically as the run proceeds. Expand **How to generate results** for terminal commands and select **Refresh results** after a terminal or CI run. [Backend reporting setup](../backend/README.md#performance-dashboard)
+Enter the configured performance run token, then select **Run AI benchmark**, **Publish Arize assets**, **Run application tests**, or **Validate benchmark fixtures**. Use **Benchmark scope** to choose one design or the full benchmark. The page refreshes automatically while an action runs. If a button is unavailable, its requirements appear below it or in the action panel. Select **Refresh results** after a terminal or CI run. [Backend reporting setup](../backend/README.md#performance-dashboard)
 
 ## Code layout
 
