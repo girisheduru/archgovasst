@@ -20,9 +20,9 @@ Expand a **Not evidenced** finding and select **Suggest next step** for AI-gener
 
 ## View AI system performance
 
-Select **Performance** in the header to open `/performance`. Overview tiles show the latest design, prompt, and test counts. The AI benchmark tiles show quality scores when a run completes, alongside model, retrieval mode, and per-design results. The **Arize AX assets** panel shows startup publication progress, the space, dataset, Prompt Hub versions, Eval Hub versions and publication errors, and latest experiment.
+Select **Performance** in the header to open `/performance`. The overview and run controls stay above the report tabs. **AI benchmark** opens by default and shows quality scores, pass and fail counts, model, and retrieval mode. Expand **Results by design** to see individual outcomes. **Arize assets** shows startup publication status, dataset and experiment IDs, and expandable Prompt Hub and Eval Hub versions. **Tests & fixtures** shows application test results and benchmark fixture validation. Starting an action opens its corresponding report tab.
 
-During a benchmark, the page shows the number of designs reviewed, experiment creation, and score attachment. If Arize rejects either request, the scored results stay visible and the action panel reports the failed step. When only score attachment fails, the Arize panel keeps the created experiment ID.
+During a benchmark, the page shows designs reviewed, prompt checks completed, experiment creation, and score attachment. Both scopes run all four prompts for each selected design. The **Prompt evals** tab shows passed, failed, and error counts by prompt. If Arize rejects either request, the scored results stay visible and the action panel reports the failed step. When only score attachment fails, the Arize panel keeps the created experiment ID.
 
 The AI benchmark counts a design as passed when its evidence gap set and assessed risk tier both match the answer key. The per-design table shows which designs passed. The application tests panel counts successful checks and distinct failed checks, with skips reported separately.
 

@@ -40,4 +40,4 @@ The application also sends two text formats to OpenAI's embeddings API to genera
 
 ## Arize Eval Hub templates
 
-The asset publisher registers a pass/fail evaluator for each of the four prompts above. Each takes the original prompt payload and model response. Their definitions and input variables are available in the local asset export alongside the seven benchmark checks. [Evaluator definitions](backend/governance/evaluation/evaluators.py), [Publication and inputs](backend/README.md#publish-arize-assets)
+The asset publisher registers a pass/fail evaluator for each of the four prompts above. Each takes the original prompt payload and model response. The smoke and full benchmarks use these rubrics and report the pass, fail, and error counts for each prompt. Their definitions and input variables are available in the local asset export alongside the seven benchmark checks. [Evaluator definitions](backend/governance/evaluation/evaluators.py), [Publication and inputs](backend/README.md#publish-arize-assets)

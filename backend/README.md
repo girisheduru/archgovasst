@@ -108,6 +108,10 @@ The first command runs one design. The second runs all 24. Both publish or reuse
 
 The benchmark treats all 75 rows in the workbook's **Expected findings** sheet as evidence gaps, including planted contradictions and missing sections. It maps business criticality tiers 1, 2, and 3 to high, medium, and low declared risk, and derives the expected assessed tier from the declared tier and labeled gaps. Suggested approval outcomes remain reference labels. The benchmark scores the automated assessment before the human approval steps.
 
+Every selected design also exercises all four published prompts independently of the review's retrieval mode. **Smoke** checks four prompt responses from one design. **Full** checks 96 responses from all 24 designs. The benchmarks run each prompt and grade its structured response with the corresponding Eval Hub rubric using `OPENAI_MODEL`. In **Performance → Prompt evals**, view pass, fail, and error counts by prompt. Arize shows the scored outcomes as four `governance_prompt_*` annotations on each experiment run. Check errors appear in the dashboard counts. The benchmark publishes scores without prompt inputs, model responses, or judge rationales.
+
+Passage extraction uses the ranked passages for each rule. A short design or an empty ranking uses up to three source passages to exercise the prompt. Gap guidance tests one labeled gap per design, or a rule with no supplied evidence if the design has no labeled gaps. These prompt checks add model calls and increase benchmark runtime and usage.
+
 In Arize AX, inspect missed and unexpected rule IDs for each design. Compare gap precision, recall, exact gap-set match, risk tier agreement, rule coverage, and citation validity. Undefined precision or recall and cases without citations are excluded from the respective means. Citation validity checks that quotes appear in the cited source. The workbook labels measure whether the app identified insufficient evidence.
 
 ## Performance dashboard
@@ -139,7 +143,7 @@ When the backend starts with Arize credentials, it publishes or reuses the full 
 
 Seven Eval Hub templates provide reusable LLM-based pass/fail checks for unexpected gaps, missed gaps, exact gap-set agreement, risk tier, rule coverage, rule citations, and source citations. The benchmark computes its numeric metrics in Python. The gap and risk templates take the review result as `output` and the dataset's `attributes.output.value` as `reference`. Coverage and rule citations require a full `review` and approved `rules`. Source citations require `review`, design `sections`, and `supporting_documents` keyed by document hash. Use an empty map for supporting documents when the review has none. The published benchmark rows contain condensed review outputs, so the coverage and citation templates need a data source with the additional inputs. [Arize Eval Hub](https://arize.com/docs/ax/evaluate/evaluators)
 
-Four additional Eval Hub templates check individual prompts. To run one in Arize, map `payload` to the original JSON passed to the prompt and `output` to the model's structured response. Use a data source that contains both fields. The bundled dataset and application traces do not capture prompt payloads and responses.
+Four additional Eval Hub templates check individual prompts. The benchmark uses these same rubrics in its own OpenAI calls. To run a template directly in Arize, use a data source with the original JSON passed to the prompt and the model's structured response. Map those fields to `payload` and `output`. The bundled dataset and application traces do not capture those fields.
 
 | Prompt | What its evaluator checks |
 | --- | --- |

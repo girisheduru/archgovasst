@@ -40,6 +40,21 @@ def _model_rule(rule):
     }
 
 
+def full_document_payload(rules, sections):
+    return {"rules": [_model_rule(rule) for rule in rules], "document": sections}
+
+
+def passage_payload(rules, passages, ranked):
+    selected = sorted({index for indices in ranked.values() for index in indices})
+    return {
+        "rules": [
+            {**_model_rule(rule), "passage_ids": ranked[rule["id"]]}
+            for rule in rules if ranked[rule["id"]]
+        ],
+        "passages": {index: passages[index] for index in selected},
+    }
+
+
 def _extract_quotes(model, instructions, response_input, allowed_passages):
     try:
         extraction = parse_response(
@@ -70,24 +85,18 @@ def _extract_from_passages(model, rules, passages):
     except (OpenAIError, ValueError):
         return {}
 
-    selected = sorted({index for indices in ranked.values() for index in indices})
-    if not selected:
+    payload = passage_payload(rules, passages, ranked)
+    if not payload["passages"]:
         return {}
     return _extract_quotes(
         model,
         PASSAGE_EXTRACTION,
-        {
-            "rules": [
-                {**_model_rule(rule), "passage_ids": ranked[rule["id"]]}
-                for rule in rules if ranked[rule["id"]]
-            ],
-            "passages": {index: passages[index] for index in selected},
-        },
+        payload,
         {rule_id: [passages[index] for index in indices] for rule_id, indices in ranked.items()},
     )
 
 
-def suggest_gap_action(model: str, rule: dict, sections: dict[str, str]) -> GapGuidance:
+def gap_guidance_payload(rule: dict, sections: dict[str, str]):
     passages = build_passages(sections)
     if len(passages) > PASSAGES_PER_RULE:
         try:
@@ -95,10 +104,15 @@ def suggest_gap_action(model: str, rule: dict, sections: dict[str, str]) -> GapG
             passages = [passages[index] for index in rankings[rule["id"]]]
         except (OpenAIError, ValueError):
             passages = []
+    return {"rule": _model_rule(rule), "design_passages": passages}
+
+
+def suggest_gap_action(model: str, rule: dict, sections: dict[str, str]) -> GapGuidance:
+    payload = gap_guidance_payload(rule, sections)
     try:
         guidance = parse_response(
             model, GAP_GUIDANCE,
-            json.dumps({"rule": _model_rule(rule), "design_passages": passages}, ensure_ascii=False),
+            json.dumps(payload, ensure_ascii=False),
             GapGuidance,
         )
     except (OpenAIError, ValueError) as exc:
@@ -112,7 +126,7 @@ def extract_supporting_evidence(model: str, rule: dict, sections: dict[str, str]
     rule_id = rule["id"]
     return _extract_quotes(
         model, EVIDENCE_EXTRACTION,
-        {"rules": [_model_rule(rule)], "document": sections},
+        full_document_payload([rule], sections),
         {rule_id: [sections]},
     ).get(rule_id)
 
@@ -135,7 +149,7 @@ def extract_evidence_with_llm(state: State):
             evidence.update(_extract_quotes(
                 model,
                 EVIDENCE_EXTRACTION,
-                {"rules": [_model_rule(rule) for rule in unresolved], "document": sections},
+                full_document_payload(unresolved, sections),
                 {rule["id"]: [sections] for rule in unresolved},
             ))
 

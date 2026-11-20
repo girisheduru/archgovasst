@@ -1,3 +1,4 @@
+import json
 import unittest
 from asyncio import sleep, timeout
 from tempfile import TemporaryDirectory
@@ -10,7 +11,7 @@ from fastapi.testclient import TestClient
 from backend.governance import application, evaluate
 from backend.governance.api import performance
 from backend.governance.application import app
-from backend.governance.evaluation import evaluators, experiment, publish
+from backend.governance.evaluation import evaluators, experiment, prompt_checks, publish
 from backend.governance.evaluation.dataset import DesignCase
 from backend.governance.evaluation.metrics import AnswerKey
 from backend.governance.performance import save_report
@@ -367,6 +368,78 @@ class PerformanceTests(unittest.TestCase):
         self.assertNotIn("private API detail", response.text + str(logs.output))
 
 
+class PromptBenchmarkTests(unittest.TestCase):
+    def setUp(self):
+        self.case = DesignCase(
+            "SD-01", {"Security": "A control is planned."}, "digest", "low", "",
+            AnswerKey(not_evidenced_rule_ids={"R-01"}, risk_tier="low"),
+        )
+        self.rules = [{"id": "R-01", "quote": "Deploy the control.", "evidence_required": "Proof of deployment."}]
+        self.review = {"findings": [], "risk_tier": "low"}
+
+    def test_each_prompt_uses_its_app_schema_and_published_grading_rubric(self):
+        expected_fields = {
+            "evidence_extraction": {"rules", "document"},
+            "passage_extraction": {"rules", "passages"},
+            "gap_guidance": {"rule", "design_passages"},
+            "review_judge": {"findings", "risk_tier", "answer_key", "source"},
+        }
+        candidate = Mock()
+        candidate.model_dump_json.return_value = '{"example": "response"}'
+        for name, fields in expected_fields.items():
+            with self.subTest(prompt=name), patch.object(
+                prompt_checks, "parse_response", side_effect=[candidate, prompt_checks.PromptVerdict(verdict="pass")],
+            ) as complete:
+                result = prompt_checks.check_prompt(name, self.case, self.rules, self.review, "model")
+                self.assertEqual(result, "pass")
+                _, instructions, payload, schema = complete.call_args_list[0].args
+                self.assertEqual((instructions, schema), prompt_checks.PROMPTS[name][:2])
+                self.assertEqual(set(json.loads(payload)), fields)
+                if name == "passage_extraction":
+                    self.assertEqual(json.loads(payload)["rules"][0]["passage_ids"], [0])
+                self.assertEqual(
+                    complete.call_args_list[1].args[2],
+                    evaluators.prompt_eval_template(name).format(payload=payload, output=candidate.model_dump_json()),
+                )
+
+    def test_experiment_runs_all_four_checks_per_design_for_both_scopes(self):
+        other = DesignCase("SD-02", self.case.sections, "digest", "low", "", self.case.key)
+        for cases in ({"SD-01": self.case}, {"SD-01": self.case, "SD-02": other}):
+            with self.subTest(designs=len(cases)):
+                client = Mock()
+                verdicts = {"evidence_extraction": "pass", "passage_extraction": "pass",
+                            "gap_guidance": "fail", "review_judge": "error"}
+                progress = Mock()
+
+                def run_tasks(**options):
+                    for doc_id in cases:
+                        output = options["task"]({experiment.INPUT_COLUMN: doc_id})
+                        for metric, prompt in experiment.PROMPT_METRICS.items():
+                            result = options["evaluators"][metric](output)
+                            self.assertEqual(result.label, verdicts[prompt])
+                            self.assertNotIn("Security", str(output))
+                    table = MagicMock()
+                    table.__len__.return_value = len(cases)
+                    table.__getitem__.return_value.dropna.return_value.empty = True
+                    return None, table
+
+                client.experiments.run.side_effect = run_tasks
+                with (
+                    patch.dict("sys.modules", {"arize.experiments": SimpleNamespace(EvaluationResult=SimpleNamespace)}),
+                    patch.object(experiment, "_review", return_value=self.review),
+                    patch.object(experiment, "check_prompt", side_effect=lambda name, *args: verdicts[name]) as check,
+                    patch.dict("os.environ", {"EVIDENCE_RETRIEVAL_MODE": "full_document"}),
+                ):
+                    report, _ = experiment.run(
+                        client, SimpleNamespace(id="dataset"), cases, self.rules, "model", None, on_phase=progress,
+                    )
+                self.assertEqual(check.call_count, len(cases) * 4)
+                self.assertEqual(report["prompt_evals"]["evidence_extraction"]["passed"], len(cases))
+                self.assertEqual(report["prompt_evals"]["gap_guidance"]["failed"], len(cases))
+                self.assertEqual(report["prompt_evals"]["review_judge"]["errors"], len(cases))
+                progress.assert_called_with(f"Evaluated {len(cases) * 4} of {len(cases) * 4} prompt responses")
+
+
 class ExperimentUploadTests(unittest.TestCase):
     def test_create_uploads_only_example_ids_and_outputs(self):
         client = Mock()
@@ -399,6 +472,7 @@ class ExperimentUploadTests(unittest.TestCase):
                                          for metric in experiment.METRICS}}
             for example_id, score in (("example-1", 0.9), ("example-2", 0))
         ]
+        results.to_dict.return_value[0]["eval.prompt_passage_extraction.score"] = 1.0
         with patch.dict("sys.modules", {
             "arize.experiments.types": SimpleNamespace(AnnotateRecordInput=SimpleNamespace, AnnotationInput=SimpleNamespace),
         }):
@@ -406,7 +480,6 @@ class ExperimentUploadTests(unittest.TestCase):
 
         annotations = client.experiments.annotate_runs.call_args.kwargs["annotations"]
         self.assertEqual([(item.record_id, [value.score for value in item.values]) for item in annotations],
-                         [("run-2", [0.0]), ("run-1", [0.9])])
-        client.annotation_configs.create_continuous.assert_called_once_with(
-            name="governance_gap_precision", space="space-id", minimum_score=0, maximum_score=1,
-        )
+                         [("run-2", [0.0]), ("run-1", [0.9, 1.0])])
+        self.assertEqual([call.kwargs["name"] for call in client.annotation_configs.create_continuous.call_args_list],
+                         ["governance_gap_precision", "governance_prompt_passage_extraction"])

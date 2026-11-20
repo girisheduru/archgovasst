@@ -20,6 +20,48 @@ const actions = [
   ['tests', 'Run application tests'],
   ['fixtures', 'Validate benchmark fixtures'],
 ];
+const views = [
+  ['benchmark', 'AI benchmark'],
+  ['prompts', 'Prompt evals'],
+  ['assets', 'Arize assets'],
+  ['checks', 'Tests & fixtures'],
+];
+const promptLabels = {
+  evidence_extraction: 'Full-document evidence extraction',
+  passage_extraction: 'Passage extraction',
+  gap_guidance: 'Gap guidance',
+  review_judge: 'Review judge',
+};
+
+function ReportTabs({ activeView, onChange }) {
+  function moveTab(event, index) {
+    const count = views.length;
+    const next = {
+      ArrowLeft: (index + count - 1) % count,
+      ArrowRight: (index + 1) % count,
+      Home: 0,
+      End: count - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    const [id] = views[next];
+    onChange(id);
+    event.currentTarget.parentElement.children[next].focus();
+  }
+
+  return (
+    <div className="performance-tabs" role="tablist" aria-label="Performance reports">
+      {views.map(([id, label], index) => (
+        <button key={id} type="button" role="tab" id={`performance-tab-${id}`}
+          aria-controls={`performance-view-${id}`} aria-selected={activeView === id}
+          tabIndex={activeView === id ? 0 : -1} onClick={() => onChange(id)}
+          onKeyDown={event => moveTab(event, index)}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function BackendConfiguration({ configuration }) {
   if (!configuration) return null;
@@ -108,40 +150,76 @@ function Benchmark({ entry }) {
           <Stat label="Retrieval mode" value={report.retrieval_mode === 'full_document' ? 'Full document' : 'Passages'} />
         </dl>
       )}
-      {report && (
-        <p className="performance-caption">A design passes when its evidence gaps and assessed risk tier match the answer key.</p>
-      )}
       <MetricTiles report={report} />
       {report && (
-        <div className="performance-table" tabIndex={0} role="region" aria-label="Benchmark results by design">
+        <details className="performance-details">
+          <summary>Results by design ({report.cases.length})</summary>
+          <p className="performance-caption">A design passes when its evidence gaps and assessed risk tier match the answer key.</p>
+          <div className="performance-table" tabIndex={0} role="region" aria-label="Benchmark results by design">
+            <table>
+              <thead><tr>
+                <th scope="col">Design</th>
+                <th scope="col">Result</th>
+                <th scope="col">Expected risk</th>
+                <th scope="col">Assessed risk</th>
+                <th scope="col">Missed gaps</th>
+                <th scope="col">Extra gaps</th>
+                <th scope="col">Review time</th>
+              </tr></thead>
+              <tbody>
+                {report.cases.map(item => (
+                  <tr key={item.id}>
+                    <th scope="row">{item.id}</th>
+                    <td>{matchesAnswerKey(item)
+                      ? <span className="status-badge" data-status="Passed">Passed</span>
+                      : <span className="status-badge" data-status="Rejected">Failed</span>}</td>
+                    <td className="performance-tier">{item.expected_tier}</td>
+                    <td className="performance-tier" data-discrepancy={item.expected_tier !== item.assessed_tier}>{item.assessed_tier}</td>
+                    <td data-discrepancy={item.missed_gaps > 0}>{item.missed_gaps}</td>
+                    <td data-discrepancy={item.unexpected_gaps > 0}>{item.unexpected_gaps}</td>
+                    <td>{item.duration_seconds} s</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
+    </section>
+  );
+}
+
+function PromptEvaluations({ entry }) {
+  const report = entry.report;
+  return (
+    <section className="performance-panel">
+      <div className="performance-panel-header">
+        <h2>Prompt evaluations</h2>
+        {report?.prompt_evals && <RunTime timestamp={report.completed_at} />}
+      </div>
+      {report?.prompt_evals ? (
+        <div className="performance-table performance-prompt-table">
           <table>
-            <caption>Results by design</caption>
             <thead><tr>
-              <th scope="col">Design</th>
-              <th scope="col">Result</th>
-              <th scope="col">Expected risk</th>
-              <th scope="col">Assessed risk</th>
-              <th scope="col">Missed gaps</th>
-              <th scope="col">Extra gaps</th>
-              <th scope="col">Review time</th>
+              <th scope="col">Prompt</th>
+              <th scope="col">Passed</th>
+              <th scope="col">Failed</th>
+              <th scope="col">Errors</th>
             </tr></thead>
             <tbody>
-              {report.cases.map(item => (
-                <tr key={item.id}>
-                  <th scope="row">{item.id}</th>
-                  <td>{matchesAnswerKey(item)
-                    ? <span className="status-badge" data-status="Passed">Passed</span>
-                    : <span className="status-badge" data-status="Rejected">Failed</span>}</td>
-                  <td className="performance-tier">{item.expected_tier}</td>
-                  <td className="performance-tier" data-discrepancy={item.expected_tier !== item.assessed_tier}>{item.assessed_tier}</td>
-                  <td data-discrepancy={item.missed_gaps > 0}>{item.missed_gaps}</td>
-                  <td data-discrepancy={item.unexpected_gaps > 0}>{item.unexpected_gaps}</td>
-                  <td>{item.duration_seconds} s</td>
+              {Object.entries(report.prompt_evals).map(([name, result]) => (
+                <tr key={name}>
+                  <th scope="row">{promptLabels[name] ?? name}</th>
+                  <td>{result.passed}</td>
+                  <td data-discrepancy={result.failed > 0}>{result.failed}</td>
+                  <td data-discrepancy={result.errors > 0}>{result.errors}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      ) : (
+        <p className="performance-empty">Run a smoke or full benchmark to see results for all four prompts.</p>
       )}
     </section>
   );
@@ -175,27 +253,29 @@ function ArizeAssets({ assets, benchmark, publication }) {
         <Stat label="Dataset" value={dataset ? (
           <>{dataset.dataset_name}<code>{dataset.dataset_id}</code></>
         ) : 'No dataset publication recorded'} />
-        <Stat label="Prompt Hub" value={prompts.length ? (
-          <ul>{prompts.map(prompt => <li key={prompt.prompt_id}>
-            {prompt.name}<code>Prompt {prompt.prompt_id} · Version {prompt.version_id}</code>
-          </li>)}</ul>
-        ) : 'No prompt publication recorded'} />
-        <Stat label="Eval Hub" value={
-          <>
-            {evaluators.length ? (
-              <ul>{evaluators.map(evaluator => <li key={evaluator.evaluator_id}>
-                {evaluator.name}<code>Evaluator {evaluator.evaluator_id} · Version {evaluator.version_id}</code>
-              </li>)}</ul>
-            ) : 'No evaluator publication recorded'}
-            {report?.evaluator_publication_error && <span>{report.evaluator_publication_error}</span>}
-          </>
-        } />
         <Stat label="Latest experiment" value={experiment?.experiment_id ? (
           <>{experiment.experiment_name}<code>{experiment.experiment_id}</code>
             {experiment.experiment_scores_published === false && <span>Score upload incomplete.</span>}
             {dataset?.dataset_id !== experiment.dataset_id && <code>Dataset {experiment.dataset_id}</code>}</>
         ) : experiment ? 'Benchmark scores saved. Arize experiment ID unavailable.' : 'No completed benchmark recorded'} />
       </dl>
+      {report?.evaluator_publication_error && <p className="sample-error">{report.evaluator_publication_error}</p>}
+      <details className="performance-details">
+        <summary>Prompt Hub ({prompts.length})</summary>
+        {prompts.length ? (
+          <ul className="performance-asset-list">{prompts.map(prompt => <li key={prompt.prompt_id}>
+            {prompt.name}<code>Prompt {prompt.prompt_id} · Version {prompt.version_id}</code>
+          </li>)}</ul>
+        ) : <p className="performance-caption">No prompt publication recorded.</p>}
+      </details>
+      <details className="performance-details">
+        <summary>Eval Hub ({evaluators.length})</summary>
+        {evaluators.length ? (
+          <ul className="performance-asset-list">{evaluators.map(evaluator => <li key={evaluator.evaluator_id}>
+            {evaluator.name}<code>Evaluator {evaluator.evaluator_id} · Version {evaluator.version_id}</code>
+          </li>)}</ul>
+        ) : <p className="performance-caption">No evaluator publication recorded.</p>}
+      </details>
     </section>
   );
 }
@@ -229,6 +309,7 @@ function ApplicationTests({ report }) {
 
 export default function PerformanceDashboard({ apiBaseUrl }) {
   const [reports, setReports] = useState(null);
+  const [activeView, setActiveView] = useState('benchmark');
   const [request, setRequest] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -308,6 +389,7 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
         throw new Error(typeof result?.detail === 'string' ? result.detail : 'Could not start the action.');
       }
       setReports(previous => ({ ...previous, job: result }));
+      setActiveView(action === 'publish' ? 'assets' : action === 'benchmark' ? 'benchmark' : 'checks');
       refresh();
     } catch (failure) {
       setRunError(failure.message);
@@ -331,10 +413,7 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
   return (
     <div className="shell performance-dashboard">
       <div className="performance-header">
-        <div>
-          <h1>AI system performance</h1>
-          <p>Benchmark scores, Arize publications, and application checks.</p>
-        </div>
+        <h1>AI system performance</h1>
         <button type="button" onClick={refresh} disabled={loading}>{loading ? 'Loading…' : 'Refresh results'}</button>
       </div>
       <p className="performance-feedback" role="status">
@@ -347,80 +426,94 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
         <Stat label="Design fixtures validated" value={fixtures.report?.case_count ?? '—'} />
       </dl>
       <div className="performance-reports">
-        <div className="performance-columns">
-          <section className="performance-panel">
-            <div className="performance-panel-header">
-              <div>
-                <h2>Run evaluations and checks</h2>
-              </div>
-            </div>
-            <form className="performance-run-form" onSubmit={startAction}>
+        <section className="performance-panel">
+          <div className="performance-panel-header">
+            <h2>Run evaluations and checks</h2>
+          </div>
+          <form className="performance-run-form" onSubmit={startAction}>
+            <div className="performance-run-fields">
               <label>Performance run token
                 <input required type="password" value={token} autoComplete="off"
                   aria-describedby="performance-token-help"
                   onChange={event => setToken(event.target.value)} disabled={!availability || Boolean(controlsUnavailable) || busy} />
               </label>
-              <p id="performance-token-help" className="performance-token-help">
-                {controlsUnavailable || (availability && 'Enter the PERFORMANCE_RUN_TOKEN set on the FastAPI backend.')}
-              </p>
               <label>Benchmark scope
                 <select value={scope} onChange={event => setScope(event.target.value)}
                   disabled={!availability || Boolean(controlsUnavailable || availability.benchmark) || busy || isPublishing}>
-                  <option value="smoke">Smoke test · 1 design</option>
-                  <option value="full">Full benchmark · All designs</option>
+                  <option value="smoke">Smoke · 1 design</option>
+                  <option value="full">Full · All designs</option>
                 </select>
               </label>
-              <div className="performance-action-buttons">
-                {actions.map(([action, label]) => {
-                  const needsArize = action === 'benchmark' || action === 'publish';
-                  const reason = availability && (
-                    action in availability ? availability[action] : 'Update the backend to enable this action.'
-                  );
-                  return (
-                    <div key={action}>
-                      <button type="submit" value={action}
-                        disabled={!availability || Boolean(controlsUnavailable || reason) || busy ||
-                          (needsArize && isPublishing)}>
-                        {label}
-                      </button>
-                      {reason && <small>{reason}</small>}
-                    </div>
-                  );
-                })}
-              </div>
-            </form>
-            <p className="performance-caption" role="status">
-              {jobMessage || (isPublishing && 'Arize actions are available after startup publication finishes.')}
+            </div>
+            <p id="performance-token-help" className="performance-token-help">
+              {controlsUnavailable || (availability && 'Enter the PERFORMANCE_RUN_TOKEN set on the FastAPI backend.')}
             </p>
-            {runError && <p className="sample-error" role="alert">{runError}</p>}
-            <BackendConfiguration configuration={reports?.configuration} />
-          </section>
+            <div className="performance-action-buttons">
+              {actions.map(([action, label]) => {
+                const needsArize = action === 'benchmark' || action === 'publish';
+                const reason = availability && (
+                  action in availability ? availability[action] : 'Update the backend to enable this action.'
+                );
+                return (
+                  <div key={action}>
+                    <button type="submit" value={action}
+                      disabled={!availability || Boolean(controlsUnavailable || reason) || busy ||
+                        (needsArize && isPublishing)}>
+                      {label}
+                    </button>
+                    {reason && <small>{reason}</small>}
+                  </div>
+                );
+              })}
+            </div>
+          </form>
+          <p className="performance-caption" role="status">
+            {jobMessage || (isPublishing ? 'Arize actions are available after startup publication finishes.' :
+              publication?.status === 'failed' ? publication.message :
+              publication?.status === 'partial' ? 'See Arize assets for evaluator publication status.' : '')}
+          </p>
+          {runError && <p className="sample-error" role="alert">{runError}</p>}
+          <BackendConfiguration configuration={reports?.configuration} />
+        </section>
+        <ReportTabs activeView={activeView} onChange={setActiveView} />
+        <div id="performance-view-benchmark" role="tabpanel" aria-labelledby="performance-tab-benchmark"
+          hidden={activeView !== 'benchmark'} tabIndex={0}>
+          <Benchmark entry={benchmark} />
+        </div>
+        <div id="performance-view-prompts" role="tabpanel" aria-labelledby="performance-tab-prompts"
+          hidden={activeView !== 'prompts'} tabIndex={0}>
+          <PromptEvaluations entry={benchmark} />
+        </div>
+        <div id="performance-view-assets" role="tabpanel" aria-labelledby="performance-tab-assets"
+          hidden={activeView !== 'assets'} tabIndex={0}>
           <ArizeAssets assets={assets} benchmark={benchmark} publication={publication} />
         </div>
-        <Benchmark entry={benchmark} />
-        <div className="performance-columns">
-          <ReportSection
-            title="Application tests"
-            description="Backend regression checks for evidence retrieval, gap actions, standards reset, and tracing."
-            entry={tests}
-            empty="No application test run has been recorded."
-          >
-            {report => <ApplicationTests report={report} />}
-          </ReportSection>
-          <ReportSection
-            title="Benchmark fixture validation"
-            description="Consistency checks across the bundled designs, standards, and answer workbook."
-            entry={fixtures}
-            empty="No successful fixture validation has been recorded."
-          >
-            {report => (
-              <dl className="performance-stats">
-                <Stat label="Designs in report" value={`${report.case_count} of ${report.available_case_count}`} />
-                <Stat label="Benchmark rules" value={report.rule_count} />
-                <Stat label="Expected evidence gaps" value={report.expected_finding_count} />
-              </dl>
-            )}
-          </ReportSection>
+        <div id="performance-view-checks" role="tabpanel" aria-labelledby="performance-tab-checks"
+          hidden={activeView !== 'checks'} tabIndex={0}>
+          <div className="performance-columns">
+            <ReportSection
+              title="Application tests"
+              description="Backend regression checks for evidence retrieval, gap actions, standards reset, and tracing."
+              entry={tests}
+              empty="No application test run has been recorded."
+            >
+              {report => <ApplicationTests report={report} />}
+            </ReportSection>
+            <ReportSection
+              title="Benchmark fixture validation"
+              description="Consistency checks across the bundled designs, standards, and answer workbook."
+              entry={fixtures}
+              empty="No successful fixture validation has been recorded."
+            >
+              {report => (
+                <dl className="performance-stats">
+                  <Stat label="Designs in report" value={`${report.case_count} of ${report.available_case_count}`} />
+                  <Stat label="Benchmark rules" value={report.rule_count} />
+                  <Stat label="Expected evidence gaps" value={report.expected_finding_count} />
+                </dl>
+              )}
+            </ReportSection>
+          </div>
         </div>
       </div>
     </div>

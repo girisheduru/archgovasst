@@ -271,7 +271,9 @@ flowchart LR
     Docs["Local sample designs and Word standards"] --> Review["Extract evidence with OpenAI and assess gaps"]
     SDK --> Review
     Review --> Score["Score gaps, risk, coverage, and citations locally"]
-    Score --> Reports["Save dashboard scores"]
+    Review --> PromptChecks["Run and grade all four prompts for each selected design"]
+    Score --> Reports["Save dashboard scores and per-prompt counts"]
+    PromptChecks --> Reports
     Reports --> Upload["Create experiment with dataset example IDs and outputs"]
     Upload --> Annotate["Attach numeric scores by Arize run ID"]
     Annotate --> AX["Per-design experiment results in Arize AX"]

@@ -12,6 +12,7 @@ from ..agent.evidence import extract_evidence_with_llm
 from ..agent.policy import assess_evidence_gaps
 from .dataset import DesignCase
 from .metrics import evaluate
+from .prompt_checks import PROMPTS, check_prompt
 
 INPUT_COLUMN = "attributes.input.value"
 REFERENCE_COLUMN = "attributes.output.value"
@@ -19,6 +20,7 @@ METRICS = (
     "gap_precision", "gap_recall", "gap_set_matches", "risk_tier_matches",
     "rule_coverage", "rule_citation_validity", "source_citation_validity",
 )
+PROMPT_METRICS = {f"prompt_{name}": name for name in PROMPTS}
 
 
 def _review(case: DesignCase, rules: list[dict]):
@@ -68,7 +70,9 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
     # Keep full reports available to local code evaluators without including quotes in AX outputs.
     reports = {}
     case_results = {}
+    prompt_evals = {prompt: {"passed": 0, "failed": 0, "errors": 0} for prompt in PROMPTS}
     progress_lock = Lock()
+    completed_prompt_checks = 0
 
     def review_design(dataset_row):
         doc_id = dataset_row[INPUT_COLUMN]
@@ -98,6 +102,25 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
             "unexpected_gaps": sorted(predicted - expected),
         }
 
+    def prompt_evaluator(prompt):
+        from arize.experiments import EvaluationResult
+
+        def score(output):
+            nonlocal completed_prompt_checks
+            doc_id = output["doc_id"]
+            verdict = check_prompt(prompt, cases[doc_id], rules, reports[doc_id], model)
+            with progress_lock:
+                count = {"pass": "passed", "fail": "failed", "error": "errors"}[verdict]
+                prompt_evals[prompt][count] += 1
+                completed_prompt_checks += 1
+                if on_phase:
+                    on_phase(f"Evaluated {completed_prompt_checks} of {len(cases) * len(PROMPTS)} prompt responses")
+            if verdict == "error":
+                return EvaluationResult(label=verdict)
+            return EvaluationResult(label=verdict, score=float(verdict == "pass"))
+
+        return score
+
     mode = "full_document" if getenv("EVIDENCE_RETRIEVAL_MODE") == "full_document" else "passages"
     experiment_name = name or f"{mode}-{datetime.now(UTC):%Y%m%d-%H%M%S-%f}"
     if on_phase:
@@ -106,7 +129,10 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
         name=experiment_name,
         dataset=dataset.id,
         task=review_design,
-        evaluators={metric: _metric(metric, cases, reports, rules) for metric in METRICS},
+        evaluators={
+            **{metric: _metric(metric, cases, reports, rules) for metric in METRICS},
+            **{metric: prompt_evaluator(prompt) for metric, prompt in PROMPT_METRICS.items()},
+        },
         concurrency=2,
         timeout=360,
         exit_on_error=True,
@@ -126,6 +152,7 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
         "model": model,
         "case_count": len(results),
         "mean_scores": mean_scores,
+        "prompt_evals": prompt_evals,
         "cases": [case_results[doc_id] for doc_id in sorted(case_results)],
     }, results
 
@@ -154,8 +181,8 @@ def publish_experiment_scores(client, experiment_id: str, space: str, results):
     for run in runs:
         row = scores_by_example[run.example_id]
         values = []
-        for metric in METRICS:
-            score = row[f"eval.{metric}.score"]
+        for metric in (*METRICS, *PROMPT_METRICS):
+            score = row.get(f"eval.{metric}.score")
             if score is not None and isfinite(score):
                 name = f"governance_{metric}"
                 score_names.add(name)

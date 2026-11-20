@@ -10,13 +10,11 @@ from os import getenv
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from ..agent.evidence import Extraction, GapGuidance
-from ..agent.prompts import EVIDENCE_EXTRACTION, GAP_GUIDANCE, PASSAGE_EXTRACTION
 from ..performance import save_report
 from .dataset import load_dataset
 from .evaluators import EvaluatorIntegrationRequired, build_evaluators, publish_evaluator, resolve_integration
 from .experiment import build_dataset
-from .judge import JUDGE_INSTRUCTIONS, Judgment
+from .prompt_checks import PROMPTS
 
 logger = getLogger(__name__)
 SAVE_REPORT = "Saving the Arize publication report"
@@ -103,15 +101,9 @@ def connect_arize(api_key: str, on_phase=None):
 
 
 def build_prompts(model: str):
-    specs = (
-        ("evidence-extraction", EVIDENCE_EXTRACTION, Extraction, "Extract evidence from a full design or supporting document."),
-        ("passage-extraction", PASSAGE_EXTRACTION, Extraction, "Extract evidence from ranked design passages."),
-        ("gap-guidance", GAP_GUIDANCE, GapGuidance, "Suggest what evidence to provide for a rule."),
-        ("review-judge", JUDGE_INSTRUCTIONS, Judgment, "Grade an exported review against its source and answer key."),
-    )
     return [
         {
-            "name": f"governance-{name}",
+            "name": f"governance-{name.replace('_', '-')}",
             "description": description,
             "model": model,
             "provider": "OPEN_AI",
@@ -122,7 +114,7 @@ def build_prompts(model: str):
             ],
             "response_schema": schema.model_json_schema(),
         }
-        for name, instructions, schema, description in specs
+        for name, (instructions, schema, description) in PROMPTS.items()
     ]
 
 

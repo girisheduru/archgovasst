@@ -23,7 +23,7 @@ JUDGE_INSTRUCTIONS = (
 )
 
 
-def judge(review: dict, key: AnswerKey, sections: dict, supporting_documents=None):
+def review_judge_payload(review: dict, key: AnswerKey, sections: dict, supporting_documents=None):
     inputs = {
         "findings": review["findings"],
         "risk_tier": review["risk_tier"],
@@ -32,6 +32,11 @@ def judge(review: dict, key: AnswerKey, sections: dict, supporting_documents=Non
     }
     if supporting_documents:
         inputs["supporting_documents_by_sha256"] = supporting_documents
+    return inputs
+
+
+def judge(review: dict, key: AnswerKey, sections: dict, supporting_documents=None):
+    inputs = review_judge_payload(review, key, sections, supporting_documents)
     judgment = parse_response(
         getenv("OPENAI_MODEL", "gpt-6-luna"),
         JUDGE_INSTRUCTIONS,

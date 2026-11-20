@@ -104,7 +104,12 @@ def run_job(action: Action, scope: Literal["smoke", "full"]):
                 if scope == "smoke":
                     case_id = min(cases)
                     cases = {case_id: cases[case_id]}
-                run_benchmark(cases, rules, available_case_count, on_phase=lambda phase: update_job("running", phase))
+                report = run_benchmark(
+                    cases, rules, available_case_count, on_phase=lambda phase: update_job("running", phase),
+                )
+                if any(result["errors"] for result in report.get("prompt_evals", {}).values()):
+                    update_job("complete", PHASES[action], "Benchmark finished with prompt check errors. See Prompt evals.")
+                    return
     except ArizePublicationError as exc:
         logger.error("Arize publication failed (%s). %s", exc.error_type, exc)
         update_job("failed", exc.phase, str(exc))
