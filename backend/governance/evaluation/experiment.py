@@ -157,19 +157,35 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
     }, results
 
 
-def publish_experiment(client, report: dict, results):
+def prompt_experiment_name(benchmark_name: str, prompt: str) -> str:
+    name = f"{prompt.replace('_', '-')}-{benchmark_name}"
+    if len(name) <= 255:
+        return name
+    return f"{name[:238]}-{sha256(name.encode()).hexdigest()[:16]}"
+
+
+def publish_experiment(client, report: dict, results, *, prompt: str | None = None):
     from arize.experiments.types import ExperimentTaskFieldNames
 
+    if prompt is None:
+        runs = results.loc[:, ["example_id", "output"]]
+    else:
+        score_column = f"eval.prompt_{prompt}.score"
+        verdicts = {1.0: "pass", 0.0: "fail"}
+        runs = [
+            {"example_id": row["example_id"], "output": {"verdict": verdicts.get(row.get(score_column), "error")}}
+            for row in results.to_dict(orient="records")
+        ]
     return client.experiments.create(
         name=report["experiment_name"],
         dataset=report["dataset_id"],
-        experiment_runs=results.loc[:, ["example_id", "output"]],
+        experiment_runs=runs,
         task_fields=ExperimentTaskFieldNames(example_id="example_id", output="output"),
         force_http=True,
     )
 
 
-def publish_experiment_scores(client, experiment_id: str, space: str, results):
+def publish_experiment_scores(client, experiment_id: str, space: str, results, *, prompt: str | None = None):
     from arize.experiments.types import AnnotateRecordInput, AnnotationInput
 
     scores_by_example = {row["example_id"]: row for row in results.to_dict(orient="records")}
@@ -178,10 +194,11 @@ def publish_experiment_scores(client, experiment_id: str, space: str, results):
         raise ValueError("Arize did not return a run ID for every scored dataset example.")
     annotations = []
     score_names = set()
+    metrics = (f"prompt_{prompt}",) if prompt else (*METRICS, *PROMPT_METRICS)
     for run in runs:
         row = scores_by_example[run.example_id]
         values = []
-        for metric in (*METRICS, *PROMPT_METRICS):
+        for metric in metrics:
             score = row.get(f"eval.{metric}.score")
             if score is not None and isfinite(score):
                 name = f"governance_{metric}"

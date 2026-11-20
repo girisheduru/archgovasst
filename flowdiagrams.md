@@ -274,7 +274,7 @@ flowchart LR
     Review --> PromptChecks["Run and grade all four prompts for each selected design"]
     Score --> Reports["Save dashboard scores and per-prompt counts"]
     PromptChecks --> Reports
-    Reports --> Upload["Create experiment with dataset example IDs and outputs"]
+    Reports --> Upload["Create overall experiment and four prompt experiments from the same results"]
     Upload --> Annotate["Attach numeric scores by Arize run ID"]
     Annotate --> AX["Per-design experiment results in Arize AX"]
 ```

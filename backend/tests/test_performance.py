@@ -131,6 +131,15 @@ class PerformanceTests(unittest.TestCase):
         self.headers = {"Authorization": "Bearer run-token"}
 
     def test_benchmark_publishes_assets_and_saves_dashboard_results(self):
+        summary, _ = self.experiment.return_value
+        summary["experiment_name"] = "smoke-run"
+        summary["prompt_evals"] = {
+            name: {"passed": 1, "failed": 0, "errors": 0} for name in prompt_checks.PROMPTS
+        }
+        self.upload.side_effect = [
+            SimpleNamespace(id=experiment_id)
+            for experiment_id in ("experiment-id", "document-id", "passage-id", "guidance-id", "judge-id")
+        ]
         response = self.client.post("/api/performance/benchmark", headers=self.headers)
         self.assertEqual(response.status_code, 202)
         self.assertEqual(response.json()["status"], "running")
@@ -146,6 +155,10 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(result["benchmark"]["report"]["experiment_id"], "experiment-id")
         self.assertTrue(result["benchmark"]["report"]["experiment_scores_published"])
         self.assertEqual(result["benchmark"]["report"]["available_case_count"], 2)
+        publications = result["benchmark"]["report"]["prompt_experiments"]
+        self.assertEqual(set(publications), set(prompt_checks.PROMPTS))
+        self.assertEqual(publications["passage_extraction"]["experiment_id"], "passage-id")
+        self.assertTrue(all(item["experiment_scores_published"] for item in publications.values()))
 
     def test_failed_experiment_keeps_published_assets_visible(self):
         self.experiment.side_effect = RuntimeError("private provider details")
@@ -189,6 +202,36 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(result["job"]["phase"], "Attaching scores to the Arize experiment")
         self.assertEqual(result["benchmark"]["report"]["experiment_id"], "experiment-id")
         self.assertFalse(result["benchmark"]["report"]["experiment_scores_published"])
+
+    def test_full_benchmark_publishes_one_experiment_per_prompt_even_if_one_fails(self):
+        summary = {
+            "experiment_name": "benchmark-run",
+            "case_count": 2,
+            "prompt_evals": {
+                name: {"passed": 2, "failed": 0, "errors": 0} for name in prompt_checks.PROMPTS
+            },
+        }
+        self.experiment.return_value = summary, Mock()
+        rejected = RuntimeError("private Arize details")
+        rejected.status = 422
+        self.upload.side_effect = [
+            SimpleNamespace(id="benchmark-id"), SimpleNamespace(id="document-id"), rejected,
+            SimpleNamespace(id="guidance-id"), SimpleNamespace(id="judge-id"),
+        ]
+        with self.assertLogs(performance.__name__, level="ERROR"):
+            response = self.client.post("/api/performance/benchmark?scope=full", headers=self.headers)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual([call.kwargs["prompt"] for call in self.upload.call_args_list], [None, *prompt_checks.PROMPTS])
+        self.assertEqual(self.score_upload.call_count, 4)
+        result = self.client.get("/api/performance").json()
+        self.assertEqual(result["job"]["status"], "failed")
+        report = result["benchmark"]["report"]
+        self.assertEqual(report["experiment_id"], "benchmark-id")
+        publications = report["prompt_experiments"]
+        self.assertEqual(publications["evidence_extraction"]["experiment_name"], "evidence-extraction-benchmark-run")
+        self.assertIn("HTTP 422", publications["passage_extraction"]["experiment_publication_error"])
+        self.assertEqual(publications["gap_guidance"]["experiment_id"], "guidance-id")
+        self.assertTrue(publications["review_judge"]["experiment_scores_published"])
 
     def test_start_requires_token_and_rejects_an_overlapping_run(self):
         url = "/api/performance/benchmark"
@@ -459,13 +502,37 @@ class ExperimentUploadTests(unittest.TestCase):
         self.assertEqual(arguments["dataset"], "dataset-id")
         self.assertNotIn("evaluator_columns", arguments)
 
+    def test_prompt_experiment_uploads_only_verdicts_for_that_prompt(self):
+        client = Mock()
+        results = Mock()
+        results.to_dict.return_value = [
+            {"example_id": example, "output": {"private": "text"}, "eval.prompt_gap_guidance.score": score}
+            for example, score in (("example-1", 1.0), ("example-2", 0.0), ("example-3", float("nan")))
+        ]
+        with patch.dict("sys.modules", {
+            "arize.experiments.types": SimpleNamespace(ExperimentTaskFieldNames=SimpleNamespace),
+        }):
+            experiment.publish_experiment(client, {
+                "dataset_id": "dataset-id", "experiment_name": "gap-guidance-smoke",
+            }, results, prompt="gap_guidance")
+        self.assertEqual(client.experiments.create.call_args.kwargs["experiment_runs"], [
+            {"example_id": f"example-{index}", "output": {"verdict": verdict}}
+            for index, verdict in enumerate(("pass", "fail", "error"), 1)
+        ])
+
     def test_annotates_by_run_id_and_omits_unavailable_scores(self):
         client = Mock()
         client.experiments.list_runs.return_value.experiment_runs = [
             SimpleNamespace(id="run-2", example_id="example-2"),
             SimpleNamespace(id="run-1", example_id="example-1"),
         ]
-        client.annotation_configs.list.return_value.annotation_configs = []
+        client.annotation_configs.list.side_effect = [
+            SimpleNamespace(annotation_configs=[]),
+            SimpleNamespace(annotation_configs=[]),
+            SimpleNamespace(annotation_configs=[
+                SimpleNamespace(name="governance_prompt_passage_extraction", minimum_score=0, maximum_score=1),
+            ]),
+        ]
         results = Mock()
         results.to_dict.return_value = [
             {"example_id": example_id, **{f"eval.{metric}.score": score if metric == "gap_precision" else float("nan")
@@ -477,9 +544,11 @@ class ExperimentUploadTests(unittest.TestCase):
             "arize.experiments.types": SimpleNamespace(AnnotateRecordInput=SimpleNamespace, AnnotationInput=SimpleNamespace),
         }):
             experiment.publish_experiment_scores(client, "experiment-id", "space-id", results)
+            experiment.publish_experiment_scores(client, "prompt-id", "space-id", results, prompt="passage_extraction")
 
-        annotations = client.experiments.annotate_runs.call_args.kwargs["annotations"]
-        self.assertEqual([(item.record_id, [value.score for value in item.values]) for item in annotations],
+        combined, prompt = (call.kwargs["annotations"] for call in client.experiments.annotate_runs.call_args_list)
+        self.assertEqual([(item.record_id, [value.score for value in item.values]) for item in combined],
                          [("run-2", [0.0]), ("run-1", [0.9, 1.0])])
+        self.assertEqual([(item.record_id, [value.score for value in item.values]) for item in prompt], [("run-1", [1.0])])
         self.assertEqual([call.kwargs["name"] for call in client.annotation_configs.create_continuous.call_args_list],
                          ["governance_gap_precision", "governance_prompt_passage_extraction"])

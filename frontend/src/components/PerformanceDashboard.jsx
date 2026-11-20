@@ -207,14 +207,28 @@ function PromptEvaluations({ entry }) {
               <th scope="col">Errors</th>
             </tr></thead>
             <tbody>
-              {Object.entries(report.prompt_evals).map(([name, result]) => (
-                <tr key={name}>
-                  <th scope="row">{promptLabels[name] ?? name}</th>
-                  <td>{result.passed}</td>
-                  <td data-discrepancy={result.failed > 0}>{result.failed}</td>
-                  <td data-discrepancy={result.errors > 0}>{result.errors}</td>
-                </tr>
-              ))}
+              {Object.entries(report.prompt_evals).map(([name, result]) => {
+                const publication = report.prompt_experiments?.[name];
+                return (
+                  <tr key={name}>
+                    <th scope="row">
+                      {promptLabels[name] ?? name}
+                      {publication && (
+                        <div className="performance-prompt-publication">
+                          <span>{publication.experiment_name}</span>
+                          {publication.experiment_id && <code>{publication.experiment_id}</code>}
+                          {publication.experiment_publication_error
+                            ? <span data-discrepancy="true">{publication.experiment_publication_error}</span>
+                            : !publication.experiment_scores_published && <span>Publication pending.</span>}
+                        </div>
+                      )}
+                    </th>
+                    <td>{result.passed}</td>
+                    <td data-discrepancy={result.failed > 0}>{result.failed}</td>
+                    <td data-discrepancy={result.errors > 0}>{result.errors}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -188,6 +188,14 @@
 .performance-table table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
 .performance-table :is(th, td) { padding: .5rem .65rem; border-bottom: 1px solid #dce6df; white-space: nowrap; }
 .performance-prompt-table th[scope="row"] { white-space: normal; }
+.performance-prompt-publication {
+  display: grid;
+  gap: .1rem;
+  color: #465a62;
+  font-size: .8rem;
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
 .performance-table thead { position: sticky; top: 0; background: #eff5f0; }
 .performance-tier { text-transform: capitalize; }
 .performance-table [data-discrepancy="true"] { color: #8a3c11; font-weight: 700; }

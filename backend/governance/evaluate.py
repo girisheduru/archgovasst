@@ -4,18 +4,23 @@ import argparse
 import json
 from datetime import date
 from hashlib import sha256
+from logging import getLogger
 from os import getenv
 from pathlib import Path
 from typing import Callable
 
 from .agent.documents import parse_document
 from .evaluation.dataset import load_dataset
-from .evaluation.experiment import build_dataset, publish_experiment, publish_experiment_scores, run
+from .evaluation.experiment import (
+    build_dataset, prompt_experiment_name, publish_experiment, publish_experiment_scores, run,
+)
 from .evaluation.judge import judge
 from .evaluation.metrics import AnswerKey, evaluate
-from .evaluation.publish import arize_api_key, connect_arize, publication_step, publish_assets
+from .evaluation.publish import ArizePublicationError, arize_api_key, connect_arize, publication_step, publish_assets
 from .performance import save_report
 from .standards_store.catalog import load_rules
+
+logger = getLogger(__name__)
 
 
 def _score_export(args):
@@ -56,20 +61,36 @@ def run_benchmark(cases, rules, available_case_count, name=None, on_phase: Calla
     dataset, assets = publish_assets(client, space, build_dataset(cases, rules), model, on_phase=on_phase)
     summary, results = run(client, dataset, cases, rules, model, name, on_phase=on_phase)
     output = {**assets, **summary, "available_case_count": available_case_count}
+    prompt_experiments = {
+        prompt: {
+            "dataset_id": dataset.id,
+            "experiment_name": prompt_experiment_name(summary["experiment_name"], prompt),
+        }
+        for prompt in summary.get("prompt_evals", {})
+    }
+    output["prompt_experiments"] = prompt_experiments
     if on_phase:
         on_phase("Saving benchmark scores")
     save_report("benchmark", output)
-    with publication_step("Creating the Arize experiment", on_phase):
-        experiment = publish_experiment(client, summary, results)
-    output["experiment_id"] = experiment.id
-    output["experiment_scores_published"] = False
-    save_report("benchmark", output)
-    with publication_step("Attaching scores to the Arize experiment", on_phase):
-        publish_experiment_scores(client, experiment.id, space, results)
-    output["experiment_scores_published"] = True
-    if on_phase:
-        on_phase("Saving the Arize publication status")
-    save_report("benchmark", output)
+    failures = []
+    for prompt, record in [(None, output), *prompt_experiments.items()]:
+        target = f"the Arize experiment for {prompt.replace('_', ' ')}" if prompt else "the Arize experiment"
+        try:
+            with publication_step(f"Creating {target}", on_phase):
+                experiment = publish_experiment(client, record, results, prompt=prompt)
+            record.update(experiment_id=experiment.id, experiment_scores_published=False)
+            save_report("benchmark", output)
+            with publication_step(f"Attaching scores to {target}", on_phase):
+                publish_experiment_scores(client, experiment.id, space, results, prompt=prompt)
+        except ArizePublicationError as exc:
+            record["experiment_publication_error"] = str(exc)
+            logger.warning("Experiment publication failed (%s). %s", exc.error_type, exc)
+            failures.append(exc)
+        else:
+            record["experiment_scores_published"] = True
+        save_report("benchmark", output)
+    if failures:
+        raise failures[0]
     return output
 
 
