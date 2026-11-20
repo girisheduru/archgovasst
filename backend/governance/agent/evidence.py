@@ -4,11 +4,11 @@ import json
 from os import getenv
 
 from openai import OpenAIError
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..api.tracing import trace_operation
 from ..providers.openai import parse_response
-from .prompts import EVIDENCE_EXTRACTION, PASSAGE_EXTRACTION
+from .prompts import EVIDENCE_EXTRACTION, GAP_GUIDANCE, PASSAGE_EXTRACTION
 from .retrieval import PASSAGES_PER_RULE, build_passages, rank_passages
 from .state import State
 
@@ -25,6 +25,11 @@ class Evidence(BaseModel):
 
 class Extraction(BaseModel):
     evidence: list[Evidence]
+
+
+class GapGuidance(BaseModel):
+    missing_evidence: str = Field(min_length=1, max_length=1000)
+    next_step: str = Field(min_length=1, max_length=1000)
 
 
 def _model_rule(rule):
@@ -80,6 +85,36 @@ def _extract_from_passages(model, rules, passages):
         },
         {rule_id: [passages[index] for index in indices] for rule_id, indices in ranked.items()},
     )
+
+
+def suggest_gap_action(model: str, rule: dict, sections: dict[str, str]) -> GapGuidance:
+    passages = build_passages(sections)
+    if len(passages) > PASSAGES_PER_RULE:
+        try:
+            rankings = rank_passages([rule], passages)
+            passages = [passages[index] for index in rankings[rule["id"]]]
+        except (OpenAIError, ValueError):
+            passages = []
+    try:
+        guidance = parse_response(
+            model, GAP_GUIDANCE,
+            json.dumps({"rule": _model_rule(rule), "design_passages": passages}, ensure_ascii=False),
+            GapGuidance,
+        )
+    except (OpenAIError, ValueError) as exc:
+        raise ModelUnavailable("The model could not suggest a next step. Try again.") from exc
+    if guidance is None:
+        raise ModelUnavailable("The model did not return a next step. Try again.")
+    return guidance
+
+
+def extract_supporting_evidence(model: str, rule: dict, sections: dict[str, str]) -> dict | None:
+    rule_id = rule["id"]
+    return _extract_quotes(
+        model, EVIDENCE_EXTRACTION,
+        {"rules": [_model_rule(rule)], "document": sections},
+        {rule_id: [sections]},
+    ).get(rule_id)
 
 
 def extract_evidence_with_llm(state: State):

@@ -88,3 +88,5 @@ flowchart TD
 ```
 
 Passage text and embeddings are used during extraction. Chroma continues to store the approved standards. For short designs and when passage ranking is unavailable, extraction searches the full design directly. Every applicable rule reaches the reviewer with either a verified citation or an evidence gap. See the [workflow diagrams](flowdiagrams.md#document-review) and [baseline comparison procedure](backend/README.md#compare-retrieval-with-the-full-document-baseline).
+
+The review API provides two on-demand actions for rules with evidence gaps. **Suggest next step** uses the approved rule and relevant design passages to draft guidance. **Recheck with a supporting document** searches the uploaded file for that rule alone while evidence confirmation is pending. FastAPI stages a verified candidate in the checkpoint state. `confirm_evidence` includes the candidate only when the reviewer selects its quote and confirms the evidence. The policy node then calculates gaps and risk using the confirmed evidence.

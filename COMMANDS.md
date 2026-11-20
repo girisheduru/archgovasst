@@ -30,7 +30,7 @@ Open [the interactive API docs](http://127.0.0.1:8000/docs) while the server is 
 
 ## Run backend tests
 
-From the clone root, run `.venv/bin/python -m unittest discover -s backend/tests -v` after installing the backend dependencies and `httpx` (used by FastAPI's test client). The suite covers review tracing, evidence retrieval, and standards reset authorization and outcomes. Tests mock OpenAI and Chroma where needed and collect traces in memory.
+From the clone root, run `.venv/bin/python -m unittest discover -s backend/tests -v` after installing the backend dependencies and `httpx` (used by FastAPI's test client). The suite covers review tracing, evidence retrieval, evidence-gap actions, and standards reset authorization and outcomes. Tests mock OpenAI and Chroma where needed and collect traces in memory.
 
 ## Import standards and evaluate a review
 
@@ -39,7 +39,7 @@ From the clone root, install the backend dependencies and configure Chroma befor
 | Command | What it does |
 | --- | --- |
 | `.venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx` | Imports 26 rules from the bundled Word standards into Chroma and overwrites records with matching rule IDs and effective dates. Requires backend dependencies, an OpenAI API key, and a Chroma connection. |
-| `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores an exported report against its source document and human answer key. Append `--judge` for OpenAI scoring. |
+| `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores an exported report against its source document and human answer key. Add `--supporting-document PATH` for each cited supporting file. Append `--judge` for OpenAI scoring. |
 
 ## Run the sample review backend
 

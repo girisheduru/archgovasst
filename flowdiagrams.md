@@ -107,6 +107,9 @@ flowchart TD
     Validate -->|"Rules without verified quotes"| Full["Search the full design and verify any further quotes"]
     Validate -->|"Rules with verified quotes"| Evidence{"Checkpoint 1: Confirm evidence?"}
     Full --> Evidence
+    Evidence -.->|"Optional for a rule with a gap"| Guidance["Draft guidance from the rule and relevant design passages"]
+    Evidence -.->|"Optional for a rule with a gap"| Recheck["Check a supporting document and stage a verified quote"]
+    Recheck -.-> Evidence
     Evidence -->|"Reject"| Rejected["End review as rejected"]
     Evidence -->|"Confirm"| Policy["Compute findings and assessed risk from the declared tier and rules with missing evidence"]
     Policy --> Report{"Checkpoint 2: Approve report?"}
@@ -116,11 +119,11 @@ flowchart TD
     classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
     class Upload user;
     classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
-    class Parse,Validate,Policy process;
+    class Parse,Validate,Policy,Recheck process;
     classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;
     class Rules store;
     classDef llm fill:#ede9fe,stroke:#7c3aed,color:#3b0764,stroke-width:2px;
-    class Extract,Full llm;
+    class Extract,Full,Guidance llm;
     classDef decision fill:#fef3c7,stroke:#a16207,color:#713f12,stroke-width:2px;
     class Evidence,Report decision;
     classDef rejected fill:#fee2e2,stroke:#dc2626,color:#7f1d1d,stroke-width:2px;
@@ -179,7 +182,7 @@ flowchart TD
 | --- | --- |
 | `retrieve_applicable_rules` | Retrieves the latest effective version of every applicable rule from Chroma. |
 | `extract_evidence_with_llm` | Ranks design passages per rule, extracts quotes with an LLM, and verifies them against the source text. It searches the full design for unresolved rules before setting the stage to `confirm_evidence`. |
-| `confirm_evidence` | Pauses for the evidence decision, appends it to the audit history, and sets the stage to `confirmed` or `rejected`. |
+| `confirm_evidence` | Pauses for the evidence decision, includes any selected supporting quotes when confirmed, appends the decision to the audit history, and sets the stage to `confirmed` or `rejected`. |
 | `assess_evidence_gaps` | Applies policy rules to produce findings and calculate the assessed risk tier. |
 | `mark_report_ready` | Sets the stage to `approve_report` so the generated findings are ready for the next reviewer decision. |
 | `approve_report` | Pauses for the report decision, appends it to the audit history, and sets the final stage to `approved` or `rejected`. |
@@ -259,6 +262,7 @@ The [evaluation CLI](backend/README.md#evaluate-an-exported-report) scores a rep
 flowchart TD
     Record["Exported JSON record with a report"] --> Evaluate["Evaluation CLI"]
     Source["Original design document"] --> Evaluate
+    Supporting["Original supporting documents, when cited"] --> Evaluate
     Key["Human answer key"] --> Evaluate
     Evaluate --> Rules["Load applicable rules using the recorded date and document type"]
     Rules --> Metrics["Score missing evidence, risk tier agreement, rule coverage, and citation validity"]
@@ -268,7 +272,7 @@ flowchart TD
     OpenAI --> Output
 
     classDef user fill:#dbeafe,stroke:#2563eb,color:#172554,stroke-width:2px;
-    class Record,Source,Key user;
+    class Record,Source,Supporting,Key user;
     classDef process fill:#dcfce7,stroke:#15803d,color:#14532d,stroke-width:2px;
     class Evaluate,Metrics process;
     classDef store fill:#ffedd5,stroke:#c2410c,color:#7c2d12,stroke-width:2px;

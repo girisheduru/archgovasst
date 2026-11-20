@@ -59,8 +59,8 @@ def render_review_report(review: dict) -> bytes:
     add("Standards comparison", "Heading2")
     add(f"{len(findings)} rules reviewed, {evidenced} with evidence, "
         f"{len(findings) - evidenced} not evidenced.")
-    add("Cited design text supports a requirement. Confirming that a control is in "
-        "place requires implementation evidence. Missing design evidence can raise "
+    add("Cited text supports a requirement. Confirming that a control is in "
+        "place requires implementation evidence. Missing evidence can raise "
         "the assessed risk tier.")
     for row in findings:
         add(f'{row["rule_id"]} / {row["standard"]}', "Heading3")
@@ -68,7 +68,11 @@ def render_review_report(review: dict) -> bytes:
         add(row["rule_quote"], label="Standard requirement")
         add(row["evidence_required"], label="Evidence required")
         if evidence := row["evidence"]:
-            add(f'{evidence["source"]}: “{evidence["quote"]}”', label="Design evidence")
+            citation = f'{evidence["source"]}: “{evidence["quote"]}”'
+            if filename := evidence.get("document"):
+                add(f"{filename} / {citation}", label="Supporting evidence")
+            else:
+                add(citation, label="Design evidence")
         else:
             add(f'Not evidenced. {row["gap_risk"].capitalize()} risk evidence gap.',
                 label="Design evidence")

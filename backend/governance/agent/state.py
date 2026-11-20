@@ -10,6 +10,7 @@ class State(TypedDict, total=False):
     extraction_model: str
     rules: list[dict]
     evidence: dict[str, dict]
+    supporting_candidates: dict[str, dict]
     findings: list[dict]
     risk_tier: str
     stage: str

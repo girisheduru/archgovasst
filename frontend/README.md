@@ -14,6 +14,10 @@ The **Review progress** banner shows all four stages and identifies the current 
 4. At either checkpoint, expand a finding and select **Add comment** to give feedback on that rule. Draft comments save with your decision, including comments on findings hidden by the filters. Use **Decision note** for the overall rationale. Expand **Decision history** beside **Record decision** on larger screens to see earlier decisions and notes. On smaller screens it sits below the form, and after the review ends it appears above **Standards comparison**.
 5. After the report is approved or rejected, select **Download final report (PDF)** to save the outcome, risk tiers, standards comparison, finding comments, and reviewer decisions. **Download decision record** saves the JSON used for evaluation, including comments in the decision history. Refreshing the same tab restores the review while the backend process is running. After a backend restart, upload the document to start a new review.
 
+### Work on an evidence gap
+
+Expand a **Not evidenced** finding and select **Suggest next step** for AI-generated guidance on what to clarify and what evidence to provide. Before confirming evidence, you can also select **Recheck with a supporting document**, choose a text-based PDF or Word file, and select **Recheck this rule**. If a verified quote appears, read it and select **Include this quote when I confirm evidence** to accept it with your evidence decision. Unchecked quotes leave the gap open. Included quotes cite the supporting filename and source location in the review and final report.
+
 ## Code layout
 
 - [`main.jsx`](src/main.jsx) selects the homepage or the dedicated document review page based on the URL.

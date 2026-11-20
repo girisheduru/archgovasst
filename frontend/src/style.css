@@ -359,6 +359,14 @@ nav { font-size: .9rem; }
 .finding-comment summary { cursor: pointer; width: fit-content; font-weight: 600; }
 .finding-comment label { margin-top: .65rem; }
 .finding-comment-text { white-space: pre-wrap; }
+.evidence-gap-actions { margin-top: .85rem; }
+.evidence-gap-actions button { margin-top: .45rem; }
+.evidence-gap-actions input[type="file"] { max-width: 100%; }
+.finding-comment .supporting-evidence-selection {
+  display: flex;
+  align-items: baseline;
+  gap: .5rem;
+}
 @media (max-width: 45rem) {
   .finding-comparison { grid-template-columns: 1fr; }
 }

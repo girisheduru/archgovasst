@@ -6,16 +6,28 @@ function reviewError(response, result) {
   return error;
 }
 
-export async function requestReview(url, options) {
+async function requestJson(url, options, isValid) {
   const response = await fetch(url, {
     ...options,
     signal: options?.signal ?? AbortSignal.timeout(110000),
   });
   const result = await response.json().catch(() => null);
-  if (!response.ok || !result?.review_id) {
+  if (!response.ok || !isValid(result)) {
     throw reviewError(response, result);
   }
   return result;
+}
+
+export function requestReview(url, options) {
+  return requestJson(url, options, result => result?.review_id);
+}
+
+export function requestGapGuidance(url, ruleId) {
+  const body = new FormData();
+  body.set('rule_id', ruleId);
+  return requestJson(url, {
+    method: 'POST', body, signal: AbortSignal.timeout(135000),
+  }, result => result?.missing_evidence && result?.next_step);
 }
 
 export async function requestReportPdf(url) {

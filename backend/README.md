@@ -67,6 +67,8 @@ The backend embeds the passages and rule queries with OpenAI, then combines keyw
 
 The reviewer confirms the extraction before the policy engine produces findings. The assessed tier is the highest of the declared tier and the configured risks of rules with missing evidence. A second reviewer decision finalizes the report. See the [retrieval architecture](../ARCHITECTURE.md#rule-selection-and-evidence-retrieval).
 
+For a rule without evidence, the reviewer can request guidance from OpenAI using the approved rule, evidence requirement, and up to three design passages. While evidence confirmation is pending, the reviewer can also upload a supporting document for that one rule. The backend verifies the returned quote against the supporting text and stages it for explicit inclusion in the evidence decision. The checkpoint stores the candidate quote, source label, filename, and file hash. The uploaded supporting file and its full text are used within the recheck request.
+
 ### Compare retrieval with the full-document baseline
 
 With `EVIDENCE_RETRIEVAL_MODE` unset, the backend uses passage retrieval. Set `EVIDENCE_RETRIEVAL_MODE` to `full_document` and restart the backend to send all applicable rules and the whole parsed design in a single extraction request.
@@ -77,7 +79,9 @@ Review the same design in both modes using the same declared tier, standards dat
 
 - `POST /api/reviews` accepts multipart fields `document` (PDF or DOCX), `document_type`, `declared_tier` (`low`, `medium`, or `high`), and optional `as_of` (ISO date, defaults to the server date). The response includes a review ID, the pending evidence checkpoint, and the retrieved rule text, standard ID, and effective date for each evidence item.
 - `GET /api/reviews/{review_id}` returns the current checkpoint, extraction, report, and decision history.
-- `POST /api/reviews/{review_id}/decision` accepts JSON with `checkpoint` (`confirm_evidence` or `approve_report`), `decision` (`approve` or `reject`), `reviewer`, optional `note`, and optional `comments` keyed by rule ID. Each comment must contain 1 to 2,000 characters after trimming and refer to a rule shown at that checkpoint. Comments are stored on the decision in `audit` and printed with the corresponding rule in the final PDF. A decision for an earlier checkpoint returns HTTP 409. Rejection at either checkpoint ends that review.
+- `POST /api/reviews/{review_id}/gap-guidance` accepts form field `rule_id` for a rule without evidence and returns `missing_evidence` and `next_step`.
+- `POST /api/reviews/{review_id}/supporting-evidence` accepts multipart fields `rule_id` and `document` (PDF or DOCX) at the `confirm_evidence` checkpoint. It returns the updated review with a `supporting_candidate` on the rule's extraction row when a quote is verified. An unsuccessful search leaves any previously verified candidate in place.
+- `POST /api/reviews/{review_id}/decision` accepts JSON with `checkpoint` (`confirm_evidence` or `approve_report`), `decision` (`approve` or `reject`), `reviewer`, optional `note`, and optional `comments` keyed by rule ID. Each comment must contain 1 to 2,000 characters after trimming and refer to a rule shown at that checkpoint. Comments are stored on the decision in `audit` and printed with the corresponding rule in the final PDF. When approving evidence, pass optional `supporting_evidence` mapping rule IDs to the selected candidate IDs. A decision with an outdated candidate or checkpoint returns HTTP 409. Rejection at either checkpoint ends that review.
 - `GET /api/reviews/{review_id}/report.pdf` downloads the final report as a PDF after a decision at the report checkpoint. It returns HTTP 409 until a final report is available, including when the review stopped at evidence confirmation.
 
 PDFs need selectable text and must be unencrypted, with up to 100 pages. Uploads are limited to 10 MB and 160,000 extracted characters. Word review reads body paragraphs and tables. Diagrams and images need a text description in the document.
@@ -93,6 +97,8 @@ Download the JSON decision record after the report has been generated. Supply th
 ```
 
 The evaluator reports gap precision and recall, risk tier agreement, rule coverage, and citation validity. Append `--judge` to send the report, answer key, and extracted document text to OpenAI for clarity, actionability, and hallucination-risk scores. Evaluations leave the review and its decisions untouched.
+
+For a review with confirmed supporting evidence, pass each original supporting file with `--supporting-document PATH` and prepare the answer key using those documents as well as the design. The evaluator matches files by SHA-256 and counts citations whose files are unavailable as unverified. With `--judge`, supplied supporting text is included in the judging request.
 
 ## Deploy on Railway
 

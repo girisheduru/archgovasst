@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import EvidenceGapActions from './EvidenceGapActions.jsx';
 
 const checkpoints = {
   confirm_evidence: 'Confirm extracted evidence',
@@ -33,7 +34,7 @@ function DecisionHistory({ audit }) {
   );
 }
 
-function Findings({ review, pending, busy }) {
+function Findings({ review, pending, busy, onSuggest, onRecheck }) {
   const [evidence, setEvidence] = useState('');
   const [standard, setStandard] = useState('');
   const [showEvidenceHelp, setShowEvidenceHelp] = useState(false);
@@ -65,8 +66,8 @@ function Findings({ review, pending, busy }) {
       </div>
       <div id="evidence-note" className="evidence-note" hidden={!showEvidenceHelp}>
         <h3>How to read design evidence</h3>
-        <p><strong>With evidence</strong> means the review cites text in the uploaded design that supports the requirement. Confirming that the control is in place requires implementation evidence.</p>
-        <p><strong>Not evidenced</strong> means the review found no supporting quote it could verify in the uploaded design. The control may still be in place, but the evidence gap can raise the assessed risk tier.</p>
+        <p><strong>With evidence</strong> means the review cites text from the design or a confirmed supporting document. Confirming that the control is in place requires implementation evidence.</p>
+        <p><strong>Not evidenced</strong> means the rule has no verified quote included in the review. The control may still be in place, and the evidence gap can raise the assessed risk tier.</p>
       </div>
       <div className="finding-filters">
         <div className="evidence-filters" role="radiogroup" aria-labelledby="evidence-status-label">
@@ -123,12 +124,16 @@ function Findings({ review, pending, busy }) {
                   <p><strong>Evidence required</strong> {row.evidence_required}</p>
                 </div>
                 <div>
-                  <h3>Design evidence</h3>
+                  <h3>{row.evidence?.document ? 'Supporting evidence' : 'Design evidence'}</h3>
                   {row.evidence ? (
-                    <p><strong>{row.evidence.source}</strong> “{row.evidence.quote}”</p>
+                    <p><strong>{row.evidence.document && `${row.evidence.document} · `}{row.evidence.source}</strong> “{row.evidence.quote}”</p>
                   ) : <p>No verified supporting quote was found.</p>}
                 </div>
               </div>
+              {!row.evidence && (
+                <EvidenceGapActions row={row} busy={busy} canRecheck={review.stage === 'confirm_evidence'}
+                  onSuggest={onSuggest} onRecheck={onRecheck} />
+              )}
               {review.audit.filter(entry => Object.hasOwn(entry.comments ?? {}, row.rule_id)).map(entry => (
                 <div className="finding-comment" key={entry.checkpoint}>
                   <p><strong>{entry.reviewer}</strong> · {checkpoints[entry.checkpoint]}</p>
@@ -153,12 +158,13 @@ function Findings({ review, pending, busy }) {
 }
 
 export default function ReviewPanel({
-  review, busy, downloading, error, onDecision, onDownload, onDownloadReport, onRefresh, onNewReview,
+  review, busy, downloading, error, onDecision, onSuggest, onRecheck,
+  onDownload, onDownloadReport, onRefresh, onNewReview,
 }) {
   const pending = isDecisionPending(review);
   const outcome = { approved: 'Approved', rejected: 'Rejected' }[review.stage];
   const finalReport = outcome && review.risk_tier;
-  const findings = <Findings review={review} pending={pending} busy={busy} />;
+  const findings = <Findings review={review} pending={pending} busy={busy} onSuggest={onSuggest} onRecheck={onRecheck} />;
 
   return (
     <>

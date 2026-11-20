@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { requestReportPdf, requestReview } from '../api/reviews.js';
+import { requestGapGuidance, requestReportPdf, requestReview } from '../api/reviews.js';
 import ReviewPanel, { isDecisionPending } from './ReviewPanel.jsx';
 import ReviewProgress from './ReviewProgress.jsx';
 import UploadPanel from './UploadPanel.jsx';
@@ -51,6 +51,7 @@ export default function DocumentReview({ apiBaseUrl }) {
       const updated = await action();
       sessionStorage.setItem(storageKey, updated.review_id);
       setReview(updated);
+      return updated;
     } catch (error) {
       setError(error.name === 'TimeoutError' ? 'The review request timed out.' : error.message);
     } finally {
@@ -76,6 +77,11 @@ export default function DocumentReview({ apiBaseUrl }) {
         .map(([name, value]) => [name.slice('comment:'.length), value.trim()]),
     );
     const decision = event.nativeEvent.submitter?.value ?? 'approve';
+    const supportingEvidence = decision === 'approve' ? Object.fromEntries(
+      [...fields.entries()]
+        .filter(([name]) => name.startsWith('supporting-evidence:'))
+        .map(([name, value]) => [name.slice('supporting-evidence:'.length), value]),
+    ) : {};
     run(() => requestReview(`${endpoint}/${review.review_id}/decision`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -83,9 +89,19 @@ export default function DocumentReview({ apiBaseUrl }) {
         reviewer: fields.get('reviewer'),
         note: fields.get('note'),
         comments,
+        supporting_evidence: supportingEvidence,
         decision,
         checkpoint: review.stage,
       }),
+    }));
+  }
+
+  function recheck(ruleId, file) {
+    const body = new FormData();
+    body.set('rule_id', ruleId);
+    body.set('document', file);
+    return run(() => requestReview(`${endpoint}/${review.review_id}/supporting-evidence`, {
+      method: 'POST', body,
     }));
   }
 
@@ -124,10 +140,13 @@ export default function DocumentReview({ apiBaseUrl }) {
       {review && (
         <ReviewPanel
           review={review}
+          key={review.review_id}
           busy={busy}
           downloading={downloading}
           error={error}
           onDecision={decide}
+          onSuggest={ruleId => requestGapGuidance(`${endpoint}/${review.review_id}/gap-guidance`, ruleId)}
+          onRecheck={recheck}
           onDownload={download}
           onDownloadReport={downloadReport}
           onRefresh={() => run(() => requestReview(`${endpoint}/${review.review_id}`))}

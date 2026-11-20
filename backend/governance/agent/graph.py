@@ -25,9 +25,17 @@ def audit(state: State, checkpoint: str, decision: dict):
 
 def confirm_evidence(state: State):
     decision = interrupt({"checkpoint": "confirm_evidence"})
+    candidates = state.get("supporting_candidates", {})
+    rejected = decision["decision"] == "reject"
+    evidence = dict(state["evidence"])
+    if not rejected:
+        for rule_id in decision.get("supporting_evidence", {}):
+            evidence[rule_id] = candidates[rule_id]["evidence"]
     return {
-        "stage": "rejected" if decision["decision"] == "reject" else "confirmed",
+        "stage": "rejected" if rejected else "confirmed",
         "audit": audit(state, "confirm_evidence", decision),
+        "evidence": evidence,
+        "supporting_candidates": {},
     }
 
 

@@ -1,4 +1,5 @@
 from datetime import date
+from hashlib import sha256
 from os import getenv
 from pathlib import Path
 from typing import Annotated, Literal
@@ -10,7 +11,7 @@ from langgraph.types import Command
 from pydantic import BaseModel, Field, StringConstraints
 
 from ..agent.documents import MAX_UPLOAD_BYTES, parse_document
-from ..agent.evidence import ModelUnavailable
+from ..agent.evidence import ModelUnavailable, extract_supporting_evidence, suggest_gap_action
 from ..review_report import render_review_report
 from ..standards_store.catalog import StandardsUnavailable
 from ..standards_store.models import DocumentType, RiskTier
@@ -26,6 +27,7 @@ class Decision(BaseModel):
     reviewer: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
     note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=2000)] = ""
     comments: dict[str, FindingComment] = Field(default_factory=dict)
+    supporting_evidence: dict[str, str] = Field(default_factory=dict)
 
 
 def _config(review_id: UUID):
@@ -52,12 +54,40 @@ def _view(review_id: UUID, state: dict):
                 "rule_quote": rule["quote"],
                 "evidence_required": rule["evidence_required"],
                 "evidence": state["evidence"].get(rule["id"]),
+                "supporting_candidate": state.get("supporting_candidates", {}).get(rule["id"]),
             }
             for rule in state["rules"]
         ],
         "findings": state.get("findings", []),
         "risk_tier": state.get("risk_tier"),
     }
+
+
+def _read_document(document: UploadFile):
+    filename = Path(document.filename or "").name
+    payload = document.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(payload) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Upload a document of at most 10 MB.")
+    try:
+        with trace_operation("parse_document", "TOOL") as span:
+            sections = parse_document(filename, payload)
+            span.set_attribute("document.section_count", len(sections))
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(422, "Could not extract text from the document.") from exc
+    return filename, payload, sections
+
+
+def _gap_rule(state: dict, rule_id: str):
+    if "stage" not in state:
+        raise HTTPException(404, "Review not found.")
+    for rule in state["rules"]:
+        if rule["id"] == rule_id:
+            if rule_id in state["evidence"]:
+                raise HTTPException(409, "This rule already has evidence.")
+            return rule
+    raise HTTPException(404, "Rule not found in this review.")
 
 
 @router.post("", status_code=201)
@@ -72,18 +102,7 @@ def start_review(
     with trace_review(request.app.state.tracer, "start_document_review", review_id):
         if not getenv("OPENAI_API_KEY", "").strip():
             raise HTTPException(503, "Configure OPENAI_API_KEY on the backend before starting a review.")
-        filename = Path(document.filename or "").name
-        payload = document.file.read(MAX_UPLOAD_BYTES + 1)
-        if len(payload) > MAX_UPLOAD_BYTES:
-            raise HTTPException(413, "Upload a document of at most 10 MB.")
-        try:
-            with trace_operation("parse_document", "TOOL") as span:
-                sections = parse_document(filename, payload)
-                span.set_attribute("document.section_count", len(sections))
-        except ValueError as exc:
-            raise HTTPException(422, str(exc)) from exc
-        except Exception as exc:
-            raise HTTPException(422, "Could not extract text from the document.") from exc
+        filename, _, sections = _read_document(document)
 
         try:
             state = request.app.state.workflow.invoke(
@@ -107,6 +126,59 @@ def start_review(
 def get_review(review_id: UUID, request: Request):
     snapshot = request.app.state.workflow.get_state(_config(review_id))
     return _view(review_id, snapshot.values)
+
+
+@router.post("/{review_id}/gap-guidance")
+def gap_guidance(review_id: UUID, rule_id: Annotated[str, Form()], request: Request):
+    state = request.app.state.workflow.get_state(_config(review_id)).values
+    rule = _gap_rule(state, rule_id)
+    with trace_review(request.app.state.tracer, "suggest_gap_action", review_id):
+        try:
+            return suggest_gap_action(state["extraction_model"], rule, state["sections"])
+        except ModelUnavailable as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+
+@router.post("/{review_id}/supporting-evidence")
+def recheck_supporting_evidence(
+    review_id: UUID,
+    request: Request,
+    rule_id: Annotated[str, Form()],
+    document: Annotated[UploadFile, File()],
+):
+    config = _config(review_id)
+    workflow = request.app.state.workflow
+    state = workflow.get_state(config).values
+    rule = _gap_rule(state, rule_id)
+    if state["stage"] != "confirm_evidence":
+        raise HTTPException(409, "Supporting documents can only be checked before evidence confirmation.")
+    previous = state.get("supporting_candidates", {}).get(rule_id)
+
+    with trace_review(request.app.state.tracer, "recheck_supporting_evidence", review_id):
+        filename, payload, sections = _read_document(document)
+        try:
+            evidence = extract_supporting_evidence(state["extraction_model"], rule, sections)
+        except ModelUnavailable as exc:
+            raise HTTPException(503, str(exc)) from exc
+
+        with request.app.state.decision_lock:
+            current = workflow.get_state(config).values
+            if current["stage"] != "confirm_evidence":
+                raise HTTPException(409, "The evidence checkpoint is no longer pending. Refresh the review.")
+            candidates = current.get("supporting_candidates", {})
+            if candidates.get(rule_id) != previous:
+                raise HTTPException(409, "This rule has a newer recheck. Refresh the review.")
+            if evidence:
+                candidate = {
+                    "id": str(uuid4()),
+                    "evidence": {**evidence, "document": filename, "document_sha256": sha256(payload).hexdigest()},
+                }
+                updated = workflow.update_state(
+                    config, {"supporting_candidates": {**candidates, rule_id: candidate}},
+                    as_node="extract_evidence_with_llm",
+                )
+                current = workflow.get_state(updated).values
+        return _view(review_id, current)
 
 
 @router.get("/{review_id}/report.pdf", response_class=Response, responses={
@@ -139,5 +211,18 @@ def decide(review_id: UUID, decision: Decision, request: Request):
             rows = current["extraction"] if decision.checkpoint == "confirm_evidence" else current["findings"]
             if decision.comments.keys() - {row["rule_id"] for row in rows}:
                 raise HTTPException(422, "Finding comments must refer to rules in this checkpoint.")
-            state = workflow.invoke(Command(resume=decision.model_dump()), config)
+            if decision.supporting_evidence:
+                if decision.checkpoint != "confirm_evidence" or decision.decision != "approve":
+                    raise HTTPException(422, "Supporting evidence can only be included when confirming evidence.")
+                candidates = {
+                    row["rule_id"]: row["supporting_candidate"]["id"]
+                    for row in rows if row["supporting_candidate"]
+                }
+                if any(candidates.get(rule_id) != candidate_id
+                       for rule_id, candidate_id in decision.supporting_evidence.items()):
+                    raise HTTPException(409, "A selected supporting quote has changed. Refresh the review.")
+            record = decision.model_dump()
+            if not decision.supporting_evidence:
+                record.pop("supporting_evidence")
+            state = workflow.invoke(Command(resume=record), config)
         return _view(review_id, state)

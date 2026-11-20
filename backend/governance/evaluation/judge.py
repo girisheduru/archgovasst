@@ -23,16 +23,19 @@ JUDGE_INSTRUCTIONS = (
 )
 
 
-def judge(review: dict, key: AnswerKey, sections: dict):
+def judge(review: dict, key: AnswerKey, sections: dict, supporting_documents=None):
+    inputs = {
+        "findings": review["findings"],
+        "risk_tier": review["risk_tier"],
+        "answer_key": key.model_dump(mode="json"),
+        "source": sections,
+    }
+    if supporting_documents:
+        inputs["supporting_documents_by_sha256"] = supporting_documents
     judgment = parse_response(
         getenv("OPENAI_MODEL", "gpt-6-luna"),
         JUDGE_INSTRUCTIONS,
-        json.dumps({
-            "findings": review["findings"],
-            "risk_tier": review["risk_tier"],
-            "answer_key": key.model_dump(mode="json"),
-            "source": sections,
-        }),
+        json.dumps(inputs),
         Judgment,
     )
     if judgment is None:

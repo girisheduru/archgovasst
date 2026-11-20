@@ -10,7 +10,7 @@ class AnswerKey(BaseModel):
     risk_tier: RiskTier
 
 
-def evaluate(review: dict, key: AnswerKey, sections: dict, rules: list[dict]):
+def evaluate(review: dict, key: AnswerKey, sections: dict, rules: list[dict], supporting_documents=None):
     findings = review["findings"]
     rule_index = {rule["id"]: Rule.model_validate(rule) for rule in rules}
     ids = [row["rule_id"] for row in findings]
@@ -26,10 +26,13 @@ def evaluate(review: dict, key: AnswerKey, sections: dict, rules: list[dict]):
         ):
             valid_rule_citations += 1
     citations = [row["evidence"] for row in findings if row["evidence"] is not None]
-    valid_citations = sum(
-        bool(item["quote"]) and item["quote"] in sections.get(item["source"], "")
-        for item in citations
-    )
+    valid_citations = 0
+    for item in citations:
+        source = sections
+        if document_hash := item.get("document_sha256"):
+            source = (supporting_documents or {}).get(document_hash, {})
+        if item["quote"] and item["quote"] in source.get(item["source"], ""):
+            valid_citations += 1
     return {
         "gap_precision": correct / len(gaps) if gaps else None,
         "gap_recall": correct / len(key.not_evidenced_rule_ids) if key.not_evidenced_rule_ids else None,
