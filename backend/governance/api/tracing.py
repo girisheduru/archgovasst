@@ -69,7 +69,7 @@ def trace_review(tracer, name, review_id):
 def configure_arize():
     space_id = getenv("ARIZE_SPACE_ID", "").strip()
     api_key = getenv("ARIZE_API_KEY", "").strip()
-    if not space_id and not api_key:
+    if not api_key and (not space_id or getenv("ARIZE_EVAL_API_KEY", "").strip()):
         return None
     if not space_id or not api_key:
         raise RuntimeError("Arize AX requires both ARIZE_SPACE_ID and ARIZE_API_KEY.")

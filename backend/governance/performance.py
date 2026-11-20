@@ -1,4 +1,4 @@
-"""Persist the latest performance reports for the read-only dashboard."""
+"""Persist the latest performance reports for the dashboard."""
 
 import json
 from datetime import UTC, datetime
@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Literal
 
-ReportKind = Literal["benchmark", "fixtures", "tests"]
+ReportKind = Literal["assets", "benchmark", "fixtures", "tests"]
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 

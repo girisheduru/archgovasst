@@ -64,20 +64,14 @@ def build_dataset(cases: dict[str, DesignCase], rules: list[dict]):
 
 def publish_dataset(client, space: str, dataset: dict):
     name = dataset["name"]
-    datasets = client.datasets.list(space=space, name=name).datasets
+    datasets = client.datasets.list(space=space, name=name).datasets or []
     existing = next((item for item in datasets if item.name == name), None)
     if existing is not None:
         return existing
     return client.datasets.create(space=space, force_http=True, **dataset)
 
 
-def run(cases: dict[str, DesignCase], rules: list[dict], name: str | None):
-    from arize import ArizeClient
-
-    space = getenv("ARIZE_SPACE_ID")
-    client = ArizeClient(api_key=getenv("ARIZE_API_KEY"))
-    dataset = publish_dataset(client, space, build_dataset(cases, rules))
-
+def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model: str, name: str | None):
     # Keep full reports available to local code evaluators without including quotes in AX outputs.
     reports = {}
     case_results = {}
@@ -107,9 +101,9 @@ def run(cases: dict[str, DesignCase], rules: list[dict], name: str | None):
         }
 
     mode = "full_document" if getenv("EVIDENCE_RETRIEVAL_MODE") == "full_document" else "passages"
-    model = getenv("OPENAI_MODEL", "gpt-6-luna")
+    experiment_name = name or f"{mode}-{datetime.now(UTC):%Y%m%d-%H%M%S-%f}"
     experiment, results = client.experiments.run(
-        name=name or f"{mode}-{datetime.now(UTC):%Y%m%d-%H%M%S-%f}",
+        name=experiment_name,
         dataset=dataset.id,
         task=review_design,
         evaluators={metric: _metric(metric, cases, reports, rules) for metric in METRICS},
@@ -126,6 +120,7 @@ def run(cases: dict[str, DesignCase], rules: list[dict], name: str | None):
     return {
         "dataset_id": dataset.id,
         "experiment_id": experiment.id,
+        "experiment_name": experiment_name,
         "retrieval_mode": mode,
         "model": model,
         "case_count": len(results),

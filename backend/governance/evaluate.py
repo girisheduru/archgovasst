@@ -6,12 +6,14 @@ from datetime import date
 from hashlib import sha256
 from os import getenv
 from pathlib import Path
+from typing import Callable
 
 from .agent.documents import parse_document
 from .evaluation.dataset import load_dataset
-from .evaluation.experiment import run
+from .evaluation.experiment import build_dataset, run
 from .evaluation.judge import judge
 from .evaluation.metrics import AnswerKey, evaluate
+from .evaluation.publish import arize_api_key, publish_assets
 from .performance import save_report
 from .standards_store.catalog import load_rules
 
@@ -29,6 +31,38 @@ def _score_export(args):
     if args.judge:
         scores["llm_judge"] = judge(review, key, sections, supporting_documents)
     return scores
+
+
+def missing_benchmark_settings() -> list[str]:
+    missing = [key for key in ("ARIZE_SPACE_ID", "OPENAI_API_KEY") if not getenv(key, "").strip()]
+    if not arize_api_key():
+        missing.append("ARIZE_EVAL_API_KEY or ARIZE_API_KEY")
+    return missing
+
+
+def fixture_summary(cases, rules):
+    return {
+        "case_count": len(cases),
+        "rule_count": len(rules),
+        "expected_finding_count": sum(len(case.key.not_evidenced_rule_ids) for case in cases.values()),
+        "design_ids": list(cases),
+    }
+
+
+def run_benchmark(cases, rules, available_case_count, name=None, on_phase: Callable[[str], None] | None = None):
+    from arize import ArizeClient
+
+    space = getenv("ARIZE_SPACE_ID", "").strip()
+    model = getenv("OPENAI_MODEL", "gpt-6-luna")
+    if on_phase:
+        on_phase("Connecting to Arize AX")
+    client = ArizeClient(api_key=arize_api_key())
+    dataset, assets = publish_assets(client, space, build_dataset(cases, rules), model, on_phase=on_phase)
+    if on_phase:
+        on_phase("Running AI evaluation and publishing experiment")
+    output = {**assets, **run(client, dataset, cases, rules, model, name)}
+    save_report("benchmark", {**output, "available_case_count": available_case_count})
+    return output
 
 
 def main():
@@ -55,6 +89,7 @@ def main():
         parser.error("--judge and --supporting-document require an exported review.")
 
     cases, rules = load_dataset()
+    all_fixtures = fixture_summary(cases, rules)
     available_case_count = len(cases)
     if args.case:
         unknown = sorted(set(args.case) - cases.keys())
@@ -62,19 +97,14 @@ def main():
             parser.error(f"Unknown design ID: {', '.join(unknown)}.")
         cases = {doc_id: case for doc_id, case in cases.items() if doc_id in args.case}
     if args.validate_only:
-        output = {
-            "case_count": len(cases),
-            "rule_count": len(rules),
-            "expected_finding_count": sum(len(case.key.not_evidenced_rule_ids) for case in cases.values()),
-            "design_ids": list(cases),
-        }
+        output = fixture_summary(cases, rules)
         save_report("fixtures", {**output, "available_case_count": available_case_count})
     else:
-        missing = [key for key in ("ARIZE_API_KEY", "ARIZE_SPACE_ID", "OPENAI_API_KEY") if not getenv(key, "").strip()]
+        missing = missing_benchmark_settings()
         if missing:
             parser.error(f"Set these environment variables before running an experiment: {', '.join(missing)}.")
-        output = run(cases, rules, args.experiment)
-        save_report("benchmark", {**output, "available_case_count": available_case_count})
+        save_report("fixtures", {**all_fixtures, "available_case_count": available_case_count})
+        output = run_benchmark(cases, rules, available_case_count, name=args.experiment)
     print(json.dumps(output, indent=2))
 
 

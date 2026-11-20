@@ -90,21 +90,21 @@ LangGraph keeps extracted document text, the standards snapshot, and decisions i
 
 ## Run the Arize AX benchmark
 
-From the clone root, install the backend dependencies, then install the evaluation dependencies in the same virtual environment:
+From the clone root, install the backend requirements, which include the evaluation dependencies, then validate the fixtures:
 
 ```sh
-.venv/bin/python -m pip install -r backend/requirements-eval.txt
+.venv/bin/python -m pip install -r backend/requirements.txt
 .venv/bin/python -m backend.governance.evaluate --validate-only
 ```
 
-Set `ARIZE_API_KEY` and `ARIZE_SPACE_ID` for the Arize AX space where you want to store the experiment. Set `OPENAI_API_KEY` for the app's evidence extraction. The benchmark runs from the CLI using the local Word standards and requires neither a running web app nor Chroma.
+Set `ARIZE_SPACE_ID` for the destination Arize AX space and use a key authorized to manage prompts, datasets, and experiments there. Set that key as `ARIZE_EVAL_API_KEY` or use `ARIZE_API_KEY` for both evaluation and tracing. Set `OPENAI_API_KEY` for evidence extraction. The CLI uses the local Word standards and can run independently of the web app and Chroma. [Arize API key permissions](https://arize.com/docs/ax/security-and-settings/api-keys)
 
 ```sh
 .venv/bin/python -m backend.governance.evaluate --case SD-01
 .venv/bin/python -m backend.governance.evaluate
 ```
 
-The first command runs one design. The second runs all 24. The SDK runs the app's extraction and gap assessment locally and saves a per-design experiment in Arize AX. The CLI prints the experiment and dataset IDs and mean scores. Arize receives design IDs, expected and predicted rule IDs, risk and outcome labels, and scores. The extraction step sends design text and rules to OpenAI.
+The first command runs one design. The second runs all 24. Both publish or reuse the selected dataset and four Prompt Hub templates, then run the app's extraction and gap assessment and save a per-design experiment in Arize AX. The CLI prints the space, dataset, prompt version, and experiment IDs and mean scores. In the same Arize space, look for the templates in Prompt Hub and the experiment under its dataset. Arize receives prompt templates, design IDs, expected and predicted rule IDs, risk and outcome labels, and scores. The extraction step sends bundled design text and rules to OpenAI.
 
 The benchmark treats all 75 rows in the workbook's **Expected findings** sheet as evidence gaps, including planted contradictions and missing sections. It maps business criticality tiers 1, 2, and 3 to high, medium, and low declared risk, and derives the expected assessed tier from the declared tier and labeled gaps. Suggested approval outcomes remain reference labels. The benchmark scores the automated assessment before the human approval steps.
 
@@ -112,15 +112,21 @@ In Arize AX, inspect missed and unexpected rule IDs for each design. Compare gap
 
 ## Performance dashboard
 
-The **Performance** page reads `GET /api/performance`. The response has `benchmark`, `tests`, and `fixtures` entries. Each entry is `pending` before its first report, `available` with a `report` when saved, or `unavailable` if a saved report cannot be read.
+The **Performance** page shows widgets for scores, Arize publications, application tests, and fixture validation. Install the backend requirements and configure `ARIZE_SPACE_ID` with `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY` to enable automatic startup publication. To also enable **Run benchmark**, configure `OPENAI_API_KEY` and a private `PERFORMANCE_RUN_TOKEN`. After restarting the service, enter that token in the form. Start with **Smoke test**, then run the full benchmark as needed. Live document reviews send telemetry to the configured trace project.
 
-The benchmark commands save scores, model and retrieval settings, and per-design gap counts, risk tiers, and review times after a successful experiment. The validation-only command saves workbook and fixture counts. Run `.venv/bin/python -m backend.governance.run_application_tests` from the clone root with the backend dependencies and `httpx` installed to save the latest backend test outcomes. The dashboard refreshes these summaries on request. Run the checks in a terminal or CI job.
+The page starts a run with `POST /api/performance/benchmark?scope=smoke` (or `scope=full`) and a bearer token. The backend accepts one dashboard run per process after startup publication finishes. Run the dashboard backend with a single worker and replica so polling and run controls share one job state. A process restart ends the in-flight job. Completed reports and IDs saved before a failure remain visible. The page polls `GET /api/performance` during a benchmark or startup publication. The response includes `job` and `arize_publication` statuses and an entry for each of `assets`, `benchmark`, `tests`, and `fixtures`. Each report entry is `pending` before its first report, `available` with a `report` when saved, or `unavailable` if it cannot be read.
+
+Both a benchmark run and the validation-only command save workbook and fixture counts. Run `.venv/bin/python -m backend.governance.run_application_tests` from the clone root with the backend dependencies and `httpx` installed to save the latest backend test outcomes. Run those checks in a terminal or CI job and refresh the dashboard afterwards.
 
 Reports are saved in the ignored `.performance/` directory at the clone root by default. Set `PERFORMANCE_REPORT_DIR` to a shared absolute directory for the backend and the processes that generate reports. On a hosted backend, use a persistent volume or deploy the report files with the service. The API exposes summaries to anyone who can access it. Reports contain benchmark IDs, scores, and test outcomes. They exclude credentials, design text, extracted quotes, and test tracebacks.
 
+On Railway with `/backend` as the service root, redeploy with the updated `requirements.txt` and configured backend variables.
+
 ## Publish the dataset and prompts
 
-From the clone root with the evaluation dependencies installed, run the publisher with a local environment file containing `ARIZE_API_KEY` and `ARIZE_SPACE_ID`. The file can also set `OPENAI_MODEL` for the Prompt Hub entries. Omit `--env-file` to use the current shell environment.
+When the backend starts with Arize credentials, it publishes or reuses the full benchmark dataset and four Prompt Hub templates in the background. The dashboard displays progress and records publication IDs. A publishing error appears in the dashboard and backend logs while the application continues serving requests. Startup uses the bundled design IDs, answer labels, and prompt templates. OpenAI calls and experiment creation occur when a benchmark is run.
+
+To publish the same assets outside the running application, run the publisher from the clone root with the evaluation dependencies installed. The environment file supplies `ARIZE_SPACE_ID` and either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY`. It can also set `OPENAI_MODEL` for the Prompt Hub entries. Omit `--env-file` to use the current shell environment.
 
 ```sh
 .venv/bin/python -m backend.governance.evaluation.publish --env-file /path/to/.env

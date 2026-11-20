@@ -8,6 +8,7 @@ from pathlib import Path
 
 from ..agent.evidence import Extraction, GapGuidance
 from ..agent.prompts import EVIDENCE_EXTRACTION, GAP_GUIDANCE, PASSAGE_EXTRACTION
+from ..performance import save_report
 from .dataset import load_dataset
 from .experiment import build_dataset, publish_dataset
 from .judge import JUDGE_INSTRUCTIONS, Judgment
@@ -63,6 +64,39 @@ def publish_prompt(client, space: str, template: dict):
     return {"name": name, "prompt_id": existing.id, "version_id": version.id}
 
 
+def arize_api_key():
+    return getenv("ARIZE_EVAL_API_KEY", "").strip() or getenv("ARIZE_API_KEY", "").strip()
+
+
+def publish_assets(client, space: str, dataset: dict, model: str, on_phase=None):
+    if on_phase:
+        on_phase("Publishing dataset")
+    published_dataset = publish_dataset(client, space, dataset)
+    summary = {
+        "space_id": space,
+        "dataset_name": dataset["name"],
+        "dataset_id": published_dataset.id,
+        "prompts": [],
+    }
+    save_report("assets", summary)
+    if on_phase:
+        on_phase("Publishing Prompt Hub templates")
+    for template in build_prompts(model):
+        summary["prompts"].append(publish_prompt(client, space, template))
+        save_report("assets", summary)
+    return published_dataset, summary
+
+
+def publish_bundled_assets(space: str, api_key: str):
+    from arize import ArizeClient
+
+    cases, rules = load_dataset()
+    dataset = build_dataset(cases, rules)
+    model = getenv("OPENAI_MODEL", "gpt-6-luna")
+    _, summary = publish_assets(ArizeClient(api_key=api_key), space, dataset, model)
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
@@ -77,25 +111,20 @@ def main():
             parser.error(f"Environment file not found: {args.env_file}")
         load_dotenv(args.env_file, override=True)
     space = getenv("ARIZE_SPACE_ID", "").strip()
-    api_key = getenv("ARIZE_API_KEY", "").strip()
+    api_key = arize_api_key()
     if not args.export and not (space and api_key):
-        parser.error("Set ARIZE_SPACE_ID and ARIZE_API_KEY or supply --env-file.")
+        parser.error("Set ARIZE_SPACE_ID and an Arize API key or supply --env-file.")
 
-    cases, rules = load_dataset()
-    dataset = build_dataset(cases, rules)
-    prompts = build_prompts(getenv("OPENAI_MODEL", "gpt-6-luna"))
     if args.export:
+        cases, rules = load_dataset()
+        dataset = build_dataset(cases, rules)
+        prompts = build_prompts(getenv("OPENAI_MODEL", "gpt-6-luna"))
         args.export.write_text(json.dumps({"dataset": dataset, "prompts": prompts}, indent=2) + "\n", encoding="utf-8")
         print(f"Exported {len(cases)} designs and {len(prompts)} prompts to {args.export}.")
         return
 
-    from arize import ArizeClient
-
-    client = ArizeClient(api_key=api_key)
-    published_dataset = publish_dataset(client, space, dataset)
-    print(json.dumps({"dataset_name": dataset["name"], "dataset_id": published_dataset.id}), flush=True)
-    for template in prompts:
-        print(json.dumps(publish_prompt(client, space, template)), flush=True)
+    summary = publish_bundled_assets(space, api_key)
+    print(json.dumps(summary, indent=2))
 
 
 if __name__ == "__main__":

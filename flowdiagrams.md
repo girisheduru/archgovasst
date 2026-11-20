@@ -256,15 +256,16 @@ flowchart LR
 
 ## Arize AX benchmark
 
-The [benchmark CLI](backend/README.md#run-the-arize-ax-benchmark) runs the same evidence extraction and gap assessment functions used by live reviews.
+The [benchmark runner](backend/README.md#run-the-arize-ax-benchmark) publishes assets and runs the same evidence extraction and gap assessment functions used by live reviews.
 
 ```mermaid
 flowchart LR
-    Workbook["Answer key workbook"] --> Dataset["Arize AX dataset with design IDs and labels"]
-    Prompts["App prompt templates"] --> Publisher["Local publishing CLI"]
+    Startup["FastAPI startup or standalone publishing command"] --> Publisher
+    Workbook["Answer key workbook"] --> Publisher["Publish or reuse dataset and templates"]
+    Prompts["App prompt templates"] --> Publisher
     Publisher --> Hub["Arize AX Prompt Hub"]
-    Publisher --> Dataset
-    Dataset --> SDK["Arize AX experiment runner"]
+    Publisher --> Dataset["Arize AX dataset with design IDs and labels"]
+    Dataset -->|"When a benchmark is requested"| SDK["Arize AX experiment runner"]
     Docs["Local sample designs and Word standards"] --> Review["Extract evidence with OpenAI and assess gaps"]
     SDK --> Review
     Review --> Score["Score gaps, risk, coverage, and citations locally"]
@@ -273,14 +274,17 @@ flowchart LR
 
 ## Performance dashboard
 
-The benchmark and test commands save the latest result for each check. The browser requests those summaries when it opens or refreshes the dashboard. [Backend reporting setup](backend/README.md#performance-dashboard)
+Startup publication, benchmark runs, and test commands save the latest result for each check. The browser polls for updates during startup publication and benchmark runs. [Backend reporting setup](backend/README.md#performance-dashboard)
 
 ```mermaid
 flowchart LR
-    Benchmark["Successful Arize AX benchmark"] --> Reports["Latest JSON summaries"]
+    Benchmark["Publish assets and run Arize AX benchmark"] --> Reports["Latest JSON summaries"]
+    Startup["Publish full dataset and Prompt Hub templates at startup"] --> Reports
     Validate["Successful benchmark fixture validation"] --> Reports
     Tests["Backend test suite outcome"] --> Reports
     Dashboard["Performance page"] -->|"GET /api/performance"| API["FastAPI"]
+    Dashboard -->|"POST /api/performance/benchmark with token"| API
+    API -->|"Start one background run"| Benchmark
     Reports --> API
     API -->|"Saved result or report status"| Dashboard
 ```

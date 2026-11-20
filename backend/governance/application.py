@@ -1,4 +1,6 @@
-from contextlib import asynccontextmanager
+from asyncio import CancelledError, create_task
+from contextlib import asynccontextmanager, suppress
+from logging import getLogger
 from os import getenv
 from threading import Lock
 
@@ -10,11 +12,37 @@ from starlette.concurrency import run_in_threadpool
 from .agent.graph import compile_workflow
 from .api import document_reviews, performance, sample_reviews, standards_import
 from .api.tracing import configure_arize
+from .evaluation.publish import arize_api_key, publish_bundled_assets
+
+logger = getLogger(__name__)
+
+
+async def publish_startup_assets(app: FastAPI, space: str, api_key: str):
+    try:
+        summary = await run_in_threadpool(publish_bundled_assets, space, api_key)
+    except ImportError:
+        app.state.arize_publication = {
+            "status": "failed",
+            "message": "Install the backend requirements to publish startup assets.",
+        }
+        logger.warning("Arize startup publication could not load its dependencies.")
+    except Exception as exc:
+        app.state.arize_publication = {
+            "status": "failed",
+            "message": "Startup publication failed. Check the backend logs and Arize settings.",
+        }
+        status = getattr(exc, "status", getattr(exc, "status_code", None))
+        logger.warning("Arize startup publication failed (%s, status %s).", type(exc).__name__, status)
+    else:
+        app.state.arize_publication = {"status": "complete"}
+        logger.info("Arize startup publication registered dataset %s and %d prompts.",
+                    summary["dataset_id"], len(summary["prompts"]))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     tracer_provider = configure_arize()
+    publication = None
     try:
         app.state.tracer = (
             tracer_provider.get_tracer("archgovasst") if tracer_provider else None
@@ -23,8 +51,18 @@ async def lifespan(app: FastAPI):
         app.state.checkpointer = checkpointer
         app.state.workflow = compile_workflow(checkpointer)
         app.state.decision_lock = Lock()
+        space = getenv("ARIZE_SPACE_ID", "").strip()
+        api_key = arize_api_key()
+        app.state.arize_publication = {"status": "unconfigured"}
+        if space and api_key:
+            app.state.arize_publication = {"status": "running"}
+            publication = create_task(publish_startup_assets(app, space, api_key))
         yield
     finally:
+        if publication is not None:
+            publication.cancel()
+            with suppress(CancelledError):
+                await publication
         if tracer_provider is not None:
             await run_in_threadpool(tracer_provider.shutdown)
 

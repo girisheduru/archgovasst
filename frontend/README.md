@@ -20,7 +20,9 @@ Expand a **Not evidenced** finding and select **Suggest next step** for AI-gener
 
 ## View AI system performance
 
-Select **Performance** in the header to open `/performance`. The AI benchmark shows the latest run's quality metrics, model, retrieval mode, and per-design results. The page also shows the latest application test outcomes and benchmark fixture validation. Expand **How to generate results** for the commands, then use **Refresh results** to load the reports. [Backend reporting setup](../backend/README.md#performance-dashboard)
+Select **Performance** in the header to open `/performance`. Overview tiles show the latest design, prompt, and test counts. The AI benchmark tiles show quality scores when a run completes, alongside model, retrieval mode, and per-design results. The **Arize AX assets** panel shows startup publication progress, the space, dataset, Prompt Hub versions, and latest experiment.
+
+Enter the configured performance run token and select **Run benchmark** to publish the dataset and templates and run the evaluation. The page refreshes automatically as the run proceeds. Expand **How to generate results** for terminal commands and select **Refresh results** after a terminal or CI run. [Backend reporting setup](../backend/README.md#performance-dashboard)
 
 ## Code layout
 
