@@ -1,3 +1,4 @@
+# These are also inlined in requirements.txt (keep the two in sync).
 arize>=8.59.1,<9
 openpyxl>=3.1,<4
 python-dotenv>=1,<2
