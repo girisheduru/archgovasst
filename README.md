@@ -11,7 +11,9 @@ AI Architecture Governance Assistant brings approved standards together and revi
 
 ## Try it locally
 
-Start the backend on port 8000, then start the frontend in a separate terminal using the guides above. Open the URL printed by Vite. To run a document review, configure the backend's `OPENAI_API_KEY` and Chroma connection, then import the [Word standards](backend/standards/README.md). The [sample review API](flowdiagrams.md#sample-review) returns fictional findings without those services.
+Start the backend on port 8000, then start the frontend in a separate terminal using the guides above. Open the URL printed by Vite. To run a document review, configure the backend's `OPENAI_API_KEY` and Chroma connection, then import the [Word standards](backend/datadocs/README.md). The [sample review API](flowdiagrams.md#sample-review) returns fictional findings without those services.
+
+Select **Performance** to see the latest AI benchmark scores, backend test outcomes, and benchmark fixture validation. The [Arize AX benchmark](backend/README.md#run-the-arize-ax-benchmark) scores the app's evidence extraction and policy assessment on the bundled solution designs using the workbook in `backend/datadocs`. The [dashboard setup](backend/README.md#performance-dashboard) explains how to generate the reports. The [publishing command](backend/README.md#publish-the-dataset-and-prompts) uploads the dataset and prompt templates independently of evaluation.
 
 For the full list of project commands, see the [command reference](COMMANDS.md).
 

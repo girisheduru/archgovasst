@@ -1,4 +1,8 @@
-# Governance standards
+# Governance standards and evaluation data
+
+- [`standards/`](standards/) contains the four versioned Word standards used by the live import and the benchmark.
+- [`solution-designs/`](solution-designs/) contains the 24 sample Word designs.
+- [`Answer_Key.xlsx`](Answer_Key.xlsx) links designs to expected findings by document ID and references the matching rules. See the [Arize AX benchmark guide](../README.md#run-the-arize-ax-benchmark).
 
 The four Word standards contain 26 rules. Use their layout for new documents.
 

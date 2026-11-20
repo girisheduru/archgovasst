@@ -18,16 +18,21 @@ The **Review progress** banner shows all four stages and identifies the current 
 
 Expand a **Not evidenced** finding and select **Suggest next step** for AI-generated guidance on what to clarify and what evidence to provide. Before confirming evidence, you can also select **Recheck with a supporting document**, choose a text-based PDF or Word file, and select **Recheck this rule**. If a verified quote appears, read it and select **Include this quote when I confirm evidence** to accept it with your evidence decision. Unchecked quotes leave the gap open. Included quotes cite the supporting filename and source location in the review and final report.
 
+## View AI system performance
+
+Select **Performance** in the header to open `/performance`. The AI benchmark shows the latest run's quality metrics, model, retrieval mode, and per-design results. The page also shows the latest application test outcomes and benchmark fixture validation. Expand **How to generate results** for the commands, then use **Refresh results** to load the reports. [Backend reporting setup](../backend/README.md#performance-dashboard)
+
 ## Code layout
 
-- [`main.jsx`](src/main.jsx) selects the homepage or the dedicated document review page based on the URL.
+- [`main.jsx`](src/main.jsx) selects the page based on the URL.
 - [`DocumentReview.jsx`](src/components/DocumentReview.jsx) manages review state and coordinates the [upload panel](src/components/UploadPanel.jsx) and [review panel](src/components/ReviewPanel.jsx).
 - [`api/reviews.js`](src/api/reviews.js) handles document review requests and API errors.
 - [`StandardsUpload.jsx`](src/components/StandardsUpload.jsx) imports approved Word standards and clears the RAG database from `/standards`.
+- [`PerformanceDashboard.jsx`](src/components/PerformanceDashboard.jsx) displays saved benchmark and test summaries from `/api/performance`.
 
 ## Upload standards
 
-Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. The form lists every selected file and, after a successful import, shows the imported filenames and the counts of rule versions added and overwritten. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. Use the [bundled standards format](../backend/standards/README.md).
+Select **Upload standards** on the homepage or **Standards** in the header. Select the approved Word (.docx) standards, then enter the import token configured on the backend. The form lists every selected file and, after a successful import, shows the imported filenames and the counts of rule versions added and overwritten. The backend extracts rule statements and evidence guidance from the documents and sends that text to OpenAI for embedding. Use the [bundled standards format](../backend/datadocs/README.md).
 
 If the form says OpenAI rejected the backend credentials, have the backend administrator check `OPENAI_API_KEY` before retrying. See the [backend setup guide](../backend/README.md#upload-approved-standards-from-the-frontend).
 
@@ -52,7 +57,7 @@ Use [`.env.example`](.env.example) as a template for `frontend/.env.local` durin
 
 For a hosted frontend, set `VITE_API_BASE_URL` in the build environment before building. Vite includes this value in the browser bundle, so use a public URL. If you leave it blank, the app makes same-origin requests and your hosting setup needs to route `/api` to the backend.
 
-On Vercel, set the project root directory to `frontend` so [`vercel.json`](vercel.json) routes direct visits to `/review` and `/standards` to the app. On other static hosts, serve `index.html` for both paths.
+On Vercel, set the project root directory to `frontend` so [`vercel.json`](vercel.json) routes direct visits to `/review`, `/standards`, and `/performance` to the app. On other static hosts, serve `index.html` for these paths.
 
 ## Build and preview
 

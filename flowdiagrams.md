@@ -254,6 +254,37 @@ flowchart LR
     class Response output;
 ```
 
+## Arize AX benchmark
+
+The [benchmark CLI](backend/README.md#run-the-arize-ax-benchmark) runs the same evidence extraction and gap assessment functions used by live reviews.
+
+```mermaid
+flowchart LR
+    Workbook["Answer key workbook"] --> Dataset["Arize AX dataset with design IDs and labels"]
+    Prompts["App prompt templates"] --> Publisher["Local publishing CLI"]
+    Publisher --> Hub["Arize AX Prompt Hub"]
+    Publisher --> Dataset
+    Dataset --> SDK["Arize AX experiment runner"]
+    Docs["Local sample designs and Word standards"] --> Review["Extract evidence with OpenAI and assess gaps"]
+    SDK --> Review
+    Review --> Score["Score gaps, risk, coverage, and citations locally"]
+    Score --> AX["Per-design experiment results in Arize AX"]
+```
+
+## Performance dashboard
+
+The benchmark and test commands save the latest result for each check. The browser requests those summaries when it opens or refreshes the dashboard. [Backend reporting setup](backend/README.md#performance-dashboard)
+
+```mermaid
+flowchart LR
+    Benchmark["Successful Arize AX benchmark"] --> Reports["Latest JSON summaries"]
+    Validate["Successful benchmark fixture validation"] --> Reports
+    Tests["Backend test suite outcome"] --> Reports
+    Dashboard["Performance page"] -->|"GET /api/performance"| API["FastAPI"]
+    Reports --> API
+    API -->|"Saved result or report status"| Dashboard
+```
+
 ## Report evaluation
 
 The [evaluation CLI](backend/README.md#evaluate-an-exported-report) scores a report after it has been generated.

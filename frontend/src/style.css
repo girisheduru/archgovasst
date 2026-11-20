@@ -32,9 +32,10 @@ a:focus-visible { outline: 2px solid currentColor; outline-offset: 5px; }
 }
 
 .brand { color: #133c38; font-weight: 750; }
-nav { font-size: .9rem; }
+nav { font-size: .9rem; flex-wrap: wrap; }
 .site-header a { text-decoration: none; }
 .site-header a:hover { text-decoration: underline; }
+.site-header a[aria-current="page"] { color: #176344; font-weight: 700; }
 
 .hero {
   color: #fff;
@@ -207,7 +208,6 @@ nav { font-size: .9rem; }
 }
 
 @media (max-width: 24rem) {
-  nav { flex-wrap: wrap; }
   .review-progress ol { grid-template-columns: 1fr; }
   .review-progress li { grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; }
   .review-progress .status-badge { grid-column: 3; }

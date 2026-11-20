@@ -32,14 +32,22 @@ Open [the interactive API docs](http://127.0.0.1:8000/docs) while the server is 
 
 From the clone root, run `.venv/bin/python -m unittest discover -s backend/tests -v` after installing the backend dependencies and `httpx` (used by FastAPI's test client). The suite covers review tracing, evidence retrieval, evidence-gap actions, and standards reset authorization and outcomes. Tests mock OpenAI and Chroma where needed and collect traces in memory.
 
+Run `.venv/bin/python -m backend.governance.run_application_tests` from the clone root with the same dependencies to run the suite and save its latest outcome for the **Performance** page. The command exits with a nonzero status if the suite fails.
+
 ## Import standards and evaluate a review
 
-From the clone root, install the backend dependencies and configure Chroma before running these commands. Import and optional judging also require `OPENAI_API_KEY` in the shell environment. See the [backend guide](backend/README.md) for file formats.
+Run from the clone root with the backend dependencies installed. The [backend guide](backend/README.md#run-the-arize-ax-benchmark) covers benchmark metrics and credentials.
 
 | Command | What it does |
 | --- | --- |
-| `.venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx` | Imports 26 rules from the bundled Word standards into Chroma and overwrites records with matching rule IDs and effective dates. Requires backend dependencies, an OpenAI API key, and a Chroma connection. |
-| `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores an exported report against its source document and human answer key. Add `--supporting-document PATH` for each cited supporting file. Append `--judge` for OpenAI scoring. |
+| `.venv/bin/python -m backend.governance.standards backend/datadocs/standards/STD-*.docx` | Imports 26 bundled rules into Chroma and overwrites matching IDs and effective dates. Requires a Chroma connection and `OPENAI_API_KEY`. |
+| `.venv/bin/python -m pip install -r backend/requirements-eval.txt` | Installs the Arize AX Python SDK and Excel reader into the backend virtual environment. |
+| `.venv/bin/python -m backend.governance.evaluation.publish --export arize-governance.json` | Writes the Arize dataset and prompt templates locally. Requires the evaluation dependencies. |
+| `.venv/bin/python -m backend.governance.evaluation.publish --env-file /path/to/.env` | Publishes the dataset and Prompt Hub templates to Arize AX without running reviews. Requires the evaluation dependencies and an environment file with `ARIZE_API_KEY` and `ARIZE_SPACE_ID`. Omit the flag if both are already set in the shell. |
+| `.venv/bin/python -m backend.governance.evaluate --validate-only` | Verifies that the workbook, Word standards, and designs agree without calling external services and saves the validation summary for **Performance**. Requires the evaluation dependencies. |
+| `.venv/bin/python -m backend.governance.evaluate --case SD-01` | Runs a one-design Arize AX experiment and saves the latest AI benchmark results for **Performance**. Requires the evaluation dependencies and `ARIZE_API_KEY`, `ARIZE_SPACE_ID`, and `OPENAI_API_KEY` in the shell. Repeat `--case` to select multiple designs. |
+| `.venv/bin/python -m backend.governance.evaluate` | Runs the complete 24-design benchmark with the same prerequisites. Use `--experiment NAME` to name the run. |
+| `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores a previously exported report. Requires a Chroma connection. Add `--supporting-document PATH` for each cited supporting file. Append `--judge` for optional OpenAI scoring with `OPENAI_API_KEY`. |
 
 ## Run the sample review backend
 

@@ -1,0 +1,96 @@
+.performance-dashboard { padding-block: clamp(1.75rem, 5vw, 3.25rem); }
+.performance-header, .performance-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: .75rem 1.5rem;
+}
+.performance-header {
+  align-items: center;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  border-radius: 1rem;
+  background: radial-gradient(ellipse at top right, #24594f, transparent 75%), #132f32;
+  color: #fff;
+}
+.performance-header h1 { font-size: clamp(1.9rem, 5vw, 3.2rem); line-height: 1.12; letter-spacing: -.035em; }
+.performance-header p { margin-top: .65rem; color: #d4e7e1; }
+.performance-header button {
+  border: 0;
+  border-radius: .55rem;
+  padding: .65rem 1rem;
+  background: #adf4d1;
+  color: #133c38;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.performance-header button:hover:not(:disabled) { background: #cefae4; }
+.performance-header button:disabled { opacity: .75; cursor: wait; }
+.performance-header button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.performance-feedback:not(:empty) { margin-top: 1rem; }
+
+.performance-reports { display: grid; gap: 1.25rem; margin-top: 1.25rem; }
+.performance-panel, .performance-instructions {
+  min-width: 0;
+  padding: clamp(1rem, 3vw, 1.65rem);
+  border: 1px solid #dce6df;
+  border-radius: .85rem;
+  background: #fff;
+}
+.performance-panel-header { margin-bottom: 1rem; }
+.performance-panel-header h2 { font-size: 1.4rem; }
+.performance-panel-header p, .performance-panel time, .performance-caption {
+  color: #465a62;
+  font-size: .9rem;
+}
+.performance-panel time { margin-top: .3rem; white-space: nowrap; }
+.performance-empty {
+  padding: .85rem 1rem;
+  border: 1px dashed #aebfb7;
+  border-radius: .55rem;
+  color: #465a62;
+  background: #f7faf8;
+}
+.performance-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem 2rem;
+  margin: .85rem 0;
+  padding: .85rem 1rem;
+  border-radius: .55rem;
+  background: #eff5f0;
+}
+.performance-stats dt { font-size: .8rem; color: #465a62; }
+.performance-stats dd { margin: .1rem 0 0; font-weight: 750; overflow-wrap: anywhere; }
+.performance-caption { margin-block: .85rem .45rem; overflow-wrap: anywhere; }
+.performance-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: .65rem;
+}
+.performance-metric {
+  padding: .8rem 1rem;
+  border: 1px solid #dce6df;
+  border-radius: .55rem;
+}
+.performance-metric h3 { font-size: .9rem; }
+.performance-metric strong { display: block; color: #133c38; font-size: 1.55rem; font-variant-numeric: tabular-nums; }
+.performance-metric meter { display: block; width: 100%; accent-color: #176344; }
+.performance-metric p { margin-top: .35rem; color: #465a62; font-size: .8rem; }
+
+.performance-table { max-width: 100%; overflow-x: auto; margin-top: 1.15rem; }
+.performance-table table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
+.performance-table caption { text-align: left; font-size: 1rem; font-weight: 750; margin-bottom: .5rem; }
+.performance-table :is(th, td) { padding: .5rem .65rem; border-bottom: 1px solid #dce6df; white-space: nowrap; }
+.performance-table thead { background: #eff5f0; }
+.performance-tier { text-transform: capitalize; }
+.performance-table [data-discrepancy="true"] { color: #8a3c11; font-weight: 700; }
+.performance-panel code, .performance-instructions code { overflow-wrap: anywhere; }
+
+.performance-instructions { margin-top: 1.25rem; }
+.performance-dashboard summary { font-weight: 700; cursor: pointer; }
+.performance-instructions p { margin-top: .5rem; }
+.performance-instructions dl { margin-bottom: 0; }
+.performance-instructions dt { margin-top: .65rem; font-weight: 650; }
+.performance-instructions dd { margin: 0; }

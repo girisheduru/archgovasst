@@ -1,6 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import DocumentReview from './components/DocumentReview.jsx';
+import PerformanceDashboard from './components/PerformanceDashboard.jsx';
 import StandardsUpload from './components/StandardsUpload.jsx';
 import './style.css';
 
@@ -64,6 +65,7 @@ function App({ path }) {
   const pages = {
     '/review': <DocumentReview apiBaseUrl={apiBaseUrl} />,
     '/standards': <StandardsUpload apiBaseUrl={apiBaseUrl} />,
+    '/performance': <PerformanceDashboard apiBaseUrl={apiBaseUrl} />,
   };
   return (
     <>
@@ -73,6 +75,7 @@ function App({ path }) {
           <nav aria-label="Main navigation">
             <a href="/review" aria-current={path === '/review' ? 'page' : undefined}>Document review</a>
             <a href="/standards" aria-current={path === '/standards' ? 'page' : undefined}>Standards</a>
+            <a href="/performance" aria-current={path === '/performance' ? 'page' : undefined}>Performance</a>
             <a href="https://github.com/girisheduru/archgovasst">GitHub ↗</a>
           </nav>
         </div>
@@ -87,5 +90,6 @@ function App({ path }) {
 const path = window.location.pathname.replace(/\/$/, '');
 if (path === '/review') document.title = 'Document review | AI Architecture Governance Assistant';
 if (path === '/standards') document.title = 'Upload governance standards | AI Architecture Governance Assistant';
+if (path === '/performance') document.title = 'AI system performance | AI Architecture Governance Assistant';
 
 createRoot(document.getElementById('root')).render(<App path={path} />);

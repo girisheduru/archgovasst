@@ -4,7 +4,9 @@
 
 Select the diagram to open the full-resolution image.
 
-The review runs through six LangGraph nodes with two human decisions. Chroma stores versioned standards. Live review state resides in backend memory until a restart. Evaluation runs separately against an exported report and a human answer key.
+The review runs through six LangGraph nodes with two human decisions. Chroma stores versioned standards. Live review state resides in backend memory until a restart. The image shows single-report evaluation. The [Arize AX benchmark workflow](flowdiagrams.md#arize-ax-benchmark) uses the bundled designs, standards, and answer workbook to evaluate extraction and gap assessment in batches.
+
+The [performance reporting workflow](flowdiagrams.md#performance-dashboard) connects the benchmark and application checks to the separate `/performance` page. FastAPI reads the latest summaries from disk when the browser requests them.
 
 ## Diagram colors
 

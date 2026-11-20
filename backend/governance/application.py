@@ -8,7 +8,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from starlette.concurrency import run_in_threadpool
 
 from .agent.graph import compile_workflow
-from .api import document_reviews, sample_reviews, standards_import
+from .api import document_reviews, performance, sample_reviews, standards_import
 from .api.tracing import configure_arize
 
 
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(sample_reviews.router)
 app.include_router(document_reviews.router)
 app.include_router(standards_import.router)
+app.include_router(performance.router)
 
 
 @app.middleware("http")

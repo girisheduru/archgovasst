@@ -10,8 +10,8 @@ FastAPI serves a LangGraph document review workflow for the [React frontend](../
 | Governance agent | [`graph.py`](governance/agent/graph.py) defines LangGraph sequencing and both approval checkpoints. [`documents.py`](governance/agent/documents.py) parses uploads, [`retrieval.py`](governance/agent/retrieval.py) ranks design passages for each applicable rule, [`evidence.py`](governance/agent/evidence.py) extracts and verifies citations, and [`policy.py`](governance/agent/policy.py) calculates findings and risk. |
 | LLM provider | [`providers/openai.py`](governance/providers/openai.py) handles OpenAI embeddings and structured responses. |
 | Chroma standards store | [`ingestion.py`](governance/standards_store/ingestion.py) embeds and imports rule versions, [`catalog.py`](governance/standards_store/catalog.py) resolves applicable versions, and [`chroma.py`](governance/standards_store/chroma.py) configures the connection. |
-| Evaluation | [`metrics.py`](governance/evaluation/metrics.py) scores the report against the source and answer key, and [`judge.py`](governance/evaluation/judge.py) runs the optional LLM evaluation. |
-| Source documents | [`backend/standards/`](standards/) contains the four Word standards used for import. |
+| Evaluation | [`dataset.py`](governance/evaluation/dataset.py) loads the workbook and Word fixtures. [`experiment.py`](governance/evaluation/experiment.py) runs the Arize benchmark using [`metrics.py`](governance/evaluation/metrics.py). [`judge.py`](governance/evaluation/judge.py) provides optional LLM scoring for exported reports. |
+| Source documents | [`datadocs/`](datadocs/) contains the Word standards, solution designs, and answer workbook. |
 
 [`governance/standards.py`](governance/standards.py) and [`governance/evaluate.py`](governance/evaluate.py) are the command-line entry points for standards import and evaluation.
 
@@ -41,7 +41,7 @@ curl http://127.0.0.1:8000/api/reviews/sample
 
 Set `STANDARDS_IMPORT_TOKEN` to a strong secret in the backend process environment or Railway service variables, then restart or redeploy. Share it only with standards maintainers. The `/standards` form sends the entered token as a bearer credential for import and reset requests. An empty backend value disables both endpoints.
 
-The form accepts up to 10 approved Word (.docx) standards, each up to 10 MB and 20 MB combined, with at most 200 rules per import. The backend extracts rule IDs, statements, evidence guidance, and effective dates directly from the documents. Use the [bundled Word template format](standards/README.md).
+The form accepts up to 10 approved Word (.docx) standards, each up to 10 MB and 20 MB combined, with at most 200 rules per import. The backend extracts rule IDs, statements, evidence guidance, and effective dates directly from the documents. Use the [bundled Word template format](datadocs/README.md).
 
 Both the form and CLI overwrite any stored rule with a matching ID and effective date, including its metadata and embedding. A different effective date creates a separate version. On success `POST /api/standards/import` returns `added` and `updated` counts. It returns HTTP 422 if a rule ID and effective date appear more than once in the upload, and HTTP 503 if embedding or storage fails.
 
@@ -56,7 +56,7 @@ Set `OPENAI_API_KEY` in the backend shell or Railway service variables. The runt
 From the clone root with the backend dependencies, OpenAI key, and Chroma connection configured, import the four bundled Word standards. Both import paths create one Chroma record per rule version and send the rule text and evidence guidance to OpenAI's `text-embedding-3-small` for embedding.
 
 ```sh
-.venv/bin/python -m backend.governance.standards backend/standards/STD-*.docx
+.venv/bin/python -m backend.governance.standards backend/datadocs/standards/STD-*.docx
 ```
 
 ### Retrieve evidence from the uploaded design
@@ -73,7 +73,7 @@ For a rule without evidence, the reviewer can request guidance from OpenAI using
 
 With `EVIDENCE_RETRIEVAL_MODE` unset, the backend uses passage retrieval. Set `EVIDENCE_RETRIEVAL_MODE` to `full_document` and restart the backend to send all applicable rules and the whole parsed design in a single extraction request.
 
-Review the same design in both modes using the same declared tier, standards date, approved standards, and OpenAI model. Confirm the evidence, export each report, and score both against the same human answer key using the [evaluation CLI](#evaluate-an-exported-report). Compare gap precision and recall, rule coverage, and citation validity. In the upload traces, compare total request duration and sum the Responses token counts across the extraction passes. Record embedding tokens separately.
+Run the [Arize AX benchmark](#run-the-arize-ax-benchmark) in each mode with the same cases and OpenAI model. Configure `EVIDENCE_RETRIEVAL_MODE` in the shell that starts each benchmark. Arize reuses the dataset for the same design files, labels, and rules, and the CLI gives each run a distinct name by default. For a comparison of live reviews, export the two reports and [score each against the same human answer key](#evaluate-an-exported-report). Compare upload trace duration, Responses tokens across extraction passes, and embedding tokens.
 
 ## Document review API
 
@@ -87,6 +87,52 @@ Review the same design in both modes using the same declared tier, standards dat
 PDFs need selectable text and must be unencrypted, with up to 100 pages. Uploads are limited to 10 MB and 160,000 extracted characters. Word review reads body paragraphs and tables. Diagrams and images need a text description in the document.
 
 LangGraph keeps extracted document text, the standards snapshot, and decisions in process memory between requests. A backend restart clears all reviews. Run one worker and one replica so each approval reaches the process that started the review. Keep live review routes behind your authenticated gateway or on a private network. Review IDs grant access to the associated state and decisions, and reviewer names are self-reported.
+
+## Run the Arize AX benchmark
+
+From the clone root, install the backend dependencies, then install the evaluation dependencies in the same virtual environment:
+
+```sh
+.venv/bin/python -m pip install -r backend/requirements-eval.txt
+.venv/bin/python -m backend.governance.evaluate --validate-only
+```
+
+Set `ARIZE_API_KEY` and `ARIZE_SPACE_ID` for the Arize AX space where you want to store the experiment. Set `OPENAI_API_KEY` for the app's evidence extraction. The benchmark runs from the CLI using the local Word standards and requires neither a running web app nor Chroma.
+
+```sh
+.venv/bin/python -m backend.governance.evaluate --case SD-01
+.venv/bin/python -m backend.governance.evaluate
+```
+
+The first command runs one design. The second runs all 24. The SDK runs the app's extraction and gap assessment locally and saves a per-design experiment in Arize AX. The CLI prints the experiment and dataset IDs and mean scores. Arize receives design IDs, expected and predicted rule IDs, risk and outcome labels, and scores. The extraction step sends design text and rules to OpenAI.
+
+The benchmark treats all 75 rows in the workbook's **Expected findings** sheet as evidence gaps, including planted contradictions and missing sections. It maps business criticality tiers 1, 2, and 3 to high, medium, and low declared risk, and derives the expected assessed tier from the declared tier and labeled gaps. Suggested approval outcomes remain reference labels. The benchmark scores the automated assessment before the human approval steps.
+
+In Arize AX, inspect missed and unexpected rule IDs for each design. Compare gap precision, recall, exact gap-set match, risk tier agreement, rule coverage, and citation validity. Undefined precision or recall and cases without citations are excluded from the respective means. Citation validity checks that quotes appear in the cited source. The workbook labels measure whether the app identified insufficient evidence.
+
+## Performance dashboard
+
+The **Performance** page reads `GET /api/performance`. The response has `benchmark`, `tests`, and `fixtures` entries. Each entry is `pending` before its first report, `available` with a `report` when saved, or `unavailable` if a saved report cannot be read.
+
+The benchmark commands save scores, model and retrieval settings, and per-design gap counts, risk tiers, and review times after a successful experiment. The validation-only command saves workbook and fixture counts. Run `.venv/bin/python -m backend.governance.run_application_tests` from the clone root with the backend dependencies and `httpx` installed to save the latest backend test outcomes. The dashboard refreshes these summaries on request. Run the checks in a terminal or CI job.
+
+Reports are saved in the ignored `.performance/` directory at the clone root by default. Set `PERFORMANCE_REPORT_DIR` to a shared absolute directory for the backend and the processes that generate reports. On a hosted backend, use a persistent volume or deploy the report files with the service. The API exposes summaries to anyone who can access it. Reports contain benchmark IDs, scores, and test outcomes. They exclude credentials, design text, extracted quotes, and test tracebacks.
+
+## Publish the dataset and prompts
+
+From the clone root with the evaluation dependencies installed, run the publisher with a local environment file containing `ARIZE_API_KEY` and `ARIZE_SPACE_ID`. The file can also set `OPENAI_MODEL` for the Prompt Hub entries. Omit `--env-file` to use the current shell environment.
+
+```sh
+.venv/bin/python -m backend.governance.evaluation.publish --env-file /path/to/.env
+```
+
+The command publishes the benchmark dataset, full-document evidence extraction, passage evidence extraction, gap guidance, and the optional review judge. It prints the dataset, prompt, and version IDs. Reruns reuse the same dataset and latest matching prompt versions. The dataset contains design IDs and answer labels. The benchmark reads the design text from the local Word files.
+
+Use the `payload` variable in Prompt Hub to pass the JSON input for a template. The extraction prompts accept `rules` and either `document` or `passages`. The guidance prompt accepts `rule` and `design_passages`. The judge accepts `findings`, `risk_tier`, `answer_key`, and `source`. The local export includes the response schemas the app applies when it calls OpenAI.
+
+```sh
+.venv/bin/python -m backend.governance.evaluation.publish --export arize-governance.json
+```
 
 ## Evaluate an exported report
 
