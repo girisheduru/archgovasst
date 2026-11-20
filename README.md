@@ -13,7 +13,7 @@ AI Architecture Governance Assistant brings approved standards together and revi
 
 Start the backend on port 8000, then start the frontend in a separate terminal using the guides above. Open the URL printed by Vite. To run a document review, configure the backend's `OPENAI_API_KEY` and Chroma connection, then import the [Word standards](backend/datadocs/README.md). The [sample review API](flowdiagrams.md#sample-review) returns fictional findings without those services.
 
-With Arize configured, the backend publishes or reuses the full bundled dataset and four prompt templates on startup. Select **Performance** to run the AI benchmark, publish Arize assets independently, run application tests, or validate the benchmark fixtures. The page shows progress and results. Document reviews appear under the configured Arize trace project. [Dashboard setup](backend/README.md#performance-dashboard)
+With Arize configured, the backend publishes or reuses the full bundled dataset, four Prompt Hub templates, and 11 Eval Hub evaluators on startup. Each prompt has its own evaluator. Select **Performance** to run the AI benchmark, publish Arize assets independently, run application tests, or validate the benchmark fixtures. The page shows progress and results. Document reviews appear under the configured Arize trace project. [Dashboard setup](backend/README.md#performance-dashboard)
 
 For the full list of project commands, see the [command reference](COMMANDS.md).
 

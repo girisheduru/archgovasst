@@ -261,9 +261,11 @@ The [benchmark runner](backend/README.md#run-the-arize-ax-benchmark) publishes a
 ```mermaid
 flowchart LR
     Startup["FastAPI startup or standalone publishing command"] --> Publisher
-    Workbook["Answer key workbook"] --> Publisher["Publish or reuse dataset and templates"]
+    Workbook["Answer key workbook"] --> Publisher["Publish or reuse Arize assets"]
     Prompts["App prompt templates"] --> Publisher
     Publisher --> Hub["Arize AX Prompt Hub"]
+    Rubrics["App evaluator templates and Arize model integration"] --> Publisher
+    Publisher --> EvalHub["Arize AX Eval Hub"]
     Publisher --> Dataset["Arize AX dataset with design IDs and labels"]
     Dataset -->|"When a benchmark is requested"| SDK["Arize AX experiment runner"]
     Docs["Local sample designs and Word standards"] --> Review["Extract evidence with OpenAI and assess gaps"]
@@ -282,8 +284,8 @@ Startup publication and dashboard actions save the latest result for each check.
 ```mermaid
 flowchart LR
     Benchmark["Publish assets and run Arize AX benchmark"] --> Reports["Latest JSON summaries"]
-    Startup["Publish full dataset and Prompt Hub templates at startup"] --> Reports
-    Publish["Publish full dataset and Prompt Hub templates on demand"] --> Reports
+    Startup["Publish full dataset, prompts, and evaluators at startup"] --> Reports
+    Publish["Publish full dataset, prompts, and evaluators on demand"] --> Reports
     Validate["Successful benchmark fixture validation"] --> Reports
     Tests["Backend test suite in a separate Python process"] --> Reports
     Dashboard["Performance page"] -->|"GET /api/performance"| API["FastAPI"]

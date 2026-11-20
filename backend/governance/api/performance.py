@@ -22,7 +22,7 @@ job = {"status": "idle"}
 Action = Literal["benchmark", "publish", "tests", "fixtures"]
 PHASES = {
     "benchmark": "Validating benchmark fixtures",
-    "publish": "Publishing the dataset and Prompt Hub templates",
+    "publish": "Publishing the dataset, prompts, and evaluators",
     "tests": "Running application tests",
     "fixtures": "Validating benchmark fixtures",
 }
@@ -85,10 +85,13 @@ def update_job(status: str, phase: str, message: str | None = None):
 def run_job(action: Action, scope: Literal["smoke", "full"]):
     try:
         if action == "publish":
-            publish_bundled_assets(
+            summary = publish_bundled_assets(
                 getenv("ARIZE_SPACE_ID", "").strip(), arize_api_key(),
                 on_phase=lambda phase: update_job("running", phase),
             )
+            if message := summary.get("evaluator_publication_error"):
+                update_job("failed", PHASES[action], message)
+                return
         elif action == "tests":
             if run_in_subprocess() != 0:
                 update_job("failed", PHASES[action], "Application tests did not pass. Check the test results and backend logs.")

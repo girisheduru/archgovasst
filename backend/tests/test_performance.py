@@ -10,10 +10,70 @@ from fastapi.testclient import TestClient
 from backend.governance import application, evaluate
 from backend.governance.api import performance
 from backend.governance.application import app
-from backend.governance.evaluation import experiment, publish
+from backend.governance.evaluation import evaluators, experiment, publish
 from backend.governance.evaluation.dataset import DesignCase
 from backend.governance.evaluation.metrics import AnswerKey
 from backend.governance.performance import save_report
+
+
+class EvaluatorPublicationTests(unittest.TestCase):
+    def test_every_published_prompt_has_a_matching_evaluator(self):
+        definitions = {item["name"]: item for item in evaluators.build_evaluators("judge-model")}
+        prompt_names = {item["name"] for item in publish.build_prompts("app-model")}
+        expected = {
+            f"governance_prompt_{name.removeprefix('governance-').replace('-', '_')}_check"
+            for name in prompt_names
+        }
+        self.assertEqual({name for name in definitions if name.startswith("governance_prompt_")}, expected)
+        for name in expected:
+            self.assertIn("{payload}", definitions[name]["template"])
+            self.assertIn("{output}", definitions[name]["template"])
+            self.assertEqual(definitions[name]["classification_choices"], {"pass": 1, "fail": 0})
+
+    def test_discovers_one_openai_integration_across_pages(self):
+        client = Mock()
+        client.ai_integrations.list.side_effect = [
+            SimpleNamespace(
+                ai_integrations=[SimpleNamespace(provider="ANTHROPIC", id="other")],
+                pagination=SimpleNamespace(next_cursor="second-page"),
+            ),
+            SimpleNamespace(
+                ai_integrations=[SimpleNamespace(provider="OPEN_AI", id="openai")],
+                pagination=SimpleNamespace(next_cursor=None),
+            ),
+        ]
+        with patch.dict("os.environ", {"ARIZE_EVAL_INTEGRATION_ID": ""}):
+            self.assertEqual(evaluators.resolve_integration(client, "space-id"), "openai")
+        client.ai_integrations.list.assert_called_with(space="space-id", cursor="second-page")
+        with patch.dict("os.environ", {"ARIZE_EVAL_INTEGRATION_ID": "selected"}):
+            self.assertEqual(evaluators.resolve_integration(client, "space-id"), "selected")
+        self.assertEqual(client.ai_integrations.list.call_count, 2)
+
+    def test_reuses_identical_evaluator_version_and_updates_changed_config(self):
+        client = Mock()
+        api = client.evaluators
+        config = Mock()
+        definition = evaluators.build_evaluators("judge-model")[0]
+        api.list.return_value.evaluators = []
+        api.create_template_evaluator.return_value = SimpleNamespace(
+            id="eval-id", version=SimpleNamespace(id="v1"),
+        )
+        with patch.dict("sys.modules", {"arize.evaluators.types": SimpleNamespace(TemplateConfigInput=config)}):
+            first = evaluators.publish_evaluator(client, "space-id", "integration-id", definition)
+            self.assertEqual(config.call_args.kwargs["llm_config"]["model_name"], "judge-model")
+            self.assertEqual(config.call_args.kwargs["classification_choices"], {"pass": 1, "fail": 0})
+            api.list.return_value.evaluators = [SimpleNamespace(id="eval-id", name=definition["name"])]
+            api.get.return_value.version = SimpleNamespace(
+                id="v1", commit_message=api.create_template_evaluator.call_args.kwargs["commit_message"],
+            )
+            self.assertEqual(evaluators.publish_evaluator(client, "space-id", "integration-id", definition), first)
+            api.create_template_version.assert_not_called()
+            api.create_template_version.return_value = SimpleNamespace(id="v2")
+            latest = evaluators.publish_evaluator(client, "space-id", "new-integration", definition)
+        api.create_template_evaluator.assert_called_once()
+        api.create_template_version.assert_called_once()
+        self.assertEqual(config.call_count, 2)
+        self.assertEqual(latest, {**first, "version_id": "v2"})
 
 
 class PerformanceTests(unittest.TestCase):
@@ -49,6 +109,15 @@ class PerformanceTests(unittest.TestCase):
             publish, "publish_prompt",
             side_effect=lambda client, space, template: {"name": template["name"], "prompt_id": template["name"]},
         ))
+        self.integration = self.enterContext(patch.object(
+            publish, "resolve_integration", return_value="integration-id",
+        ))
+        self.evaluator = self.enterContext(patch.object(
+            publish, "publish_evaluator",
+            side_effect=lambda client, space, integration_id, template: {
+                "name": template["name"], "evaluator_id": template["name"], "version_id": "version-id",
+            },
+        ))
         self.experiment = self.enterContext(patch.object(
             evaluate, "run", return_value=({"case_count": 1, "mean_scores": {"gap_precision": 0.8}}, Mock()),
         ))
@@ -71,6 +140,7 @@ class PerformanceTests(unittest.TestCase):
         result = self.client.get("/api/performance").json()
         self.assertEqual(result["job"]["status"], "complete")
         self.assertEqual(len(result["assets"]["report"]["prompts"]), 4)
+        self.assertEqual(len(result["assets"]["report"]["evaluators"]), 11)
         self.assertEqual(result["fixtures"]["report"]["case_count"], 2)
         self.assertEqual(result["benchmark"]["report"]["experiment_id"], "experiment-id")
         self.assertTrue(result["benchmark"]["report"]["experiment_scores_published"])
@@ -157,7 +227,26 @@ class PerformanceTests(unittest.TestCase):
         result = self.client.get("/api/performance").json()
         self.assertEqual(result["job"]["status"], "complete")
         self.assertEqual(result["assets"]["report"]["dataset_id"], "dataset-id")
+        self.integration.assert_called_once_with(self.sdk.return_value, "test-space")
+        self.assertEqual(self.evaluator.call_count, 11)
+        self.assertTrue(all(call.args[2] == "integration-id" for call in self.evaluator.call_args_list))
         self.experiment.assert_not_called()
+
+    def test_evaluator_failure_keeps_assets_visible_and_allows_benchmark(self):
+        self.integration.side_effect = evaluators.EvaluatorIntegrationRequired
+        with self.assertLogs(publish.__name__, level="WARNING"):
+            self.assertEqual(self.client.post("/api/performance/publish", headers=self.headers).status_code, 202)
+            result = self.client.get("/api/performance").json()
+            self.assertEqual(result["job"]["status"], "failed")
+            assets = result["assets"]["report"]
+            self.assertEqual(len(assets["prompts"]), 4)
+            self.assertEqual(assets["evaluators"], [])
+            self.assertIn("OpenAI integration", assets["evaluator_publication_error"])
+
+            self.assertEqual(self.client.post("/api/performance/benchmark", headers=self.headers).status_code, 202)
+        result = self.client.get("/api/performance").json()
+        self.assertEqual(result["job"]["status"], "complete")
+        self.assertEqual(result["benchmark"]["report"]["experiment_id"], "experiment-id")
 
     def test_auth_check_uses_selected_key_and_a_read_only_dataset_lookup(self):
         client = self.sdk.return_value
@@ -237,7 +326,7 @@ class PerformanceTests(unittest.TestCase):
             while app.state.arize_publication["status"] == "running":
                 await sleep(0.01)
 
-    def test_startup_publishes_full_dataset_and_templates_in_background(self):
+    def test_startup_publishes_full_dataset_prompts_and_evaluators_in_background(self):
         release = Event()
 
         def publish_dataset(*args):
@@ -261,6 +350,7 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(result["arize_publication"]["status"], "complete")
         self.assertEqual(result["assets"]["report"]["dataset_id"], "startup-dataset")
         self.assertEqual(len(result["assets"]["report"]["prompts"]), 4)
+        self.assertEqual(len(result["assets"]["report"]["evaluators"]), 11)
         self.assertEqual(result["benchmark"]["status"], "pending")
         self.experiment.assert_not_called()
 

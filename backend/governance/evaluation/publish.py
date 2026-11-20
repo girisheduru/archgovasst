@@ -1,4 +1,4 @@
-"""Export or publish the governance benchmark dataset and Prompt Hub templates."""
+"""Export or publish the governance benchmark dataset, prompts, and evaluators."""
 
 import argparse
 import json
@@ -14,6 +14,7 @@ from ..agent.evidence import Extraction, GapGuidance
 from ..agent.prompts import EVIDENCE_EXTRACTION, GAP_GUIDANCE, PASSAGE_EXTRACTION
 from ..performance import save_report
 from .dataset import load_dataset
+from .evaluators import EvaluatorIntegrationRequired, build_evaluators, publish_evaluator, resolve_integration
 from .experiment import build_dataset
 from .judge import JUDGE_INSTRUCTIONS, Judgment
 
@@ -29,7 +30,8 @@ def validation_summary(cause: Exception) -> str:
     if isinstance(body, str):
         fields = sorted(set(re.findall(
             r"\b(?:dataset_id|dataset_version_id|space_id|experiment_runs|example_id|output|"
-            r"record_id|annotations|minimum_score|maximum_score)\b",
+            r"record_id|annotations|minimum_score|maximum_score|template_config|ai_integration_id|"
+            r"model_name|classification_choices)\b",
             body[:16000],
         )))
     headers = getattr(cause, "headers", None)
@@ -63,7 +65,14 @@ class ArizePublicationError(RuntimeError):
         if phase == SAVE_REPORT:
             message = "Arize assets were published. Set PERFORMANCE_REPORT_DIR to a directory the backend can write to so the dashboard can display the IDs."
         else:
-            if isinstance(cause, ModuleNotFoundError):
+            if isinstance(cause, EvaluatorIntegrationRequired):
+                hint = (
+                    "Set up an OpenAI integration in the Arize space. If several are available, "
+                    "set ARIZE_EVAL_INTEGRATION_ID on the backend to select one."
+                )
+            elif phase == "Finding the Arize model integration for Eval Hub" and self.status == 403:
+                hint = "Set ARIZE_EVAL_INTEGRATION_ID to the existing OpenAI integration ID or grant the Arize key integration read access."
+            elif isinstance(cause, ModuleNotFoundError):
                 hint = "Install the backend requirements and redeploy."
             elif isinstance(cause, ImportError):
                 hint = "An installed backend dependency could not load a required interface. Check the backend SDK version and deployment logs."
@@ -181,6 +190,7 @@ def publish_assets(client, space: str, dataset: dict, model: str, on_phase=None)
         "dataset_name": dataset["name"],
         "dataset_id": published_dataset.id,
         "prompts": [],
+        "evaluators": [],
     }
     try:
         with publication_step("Preparing the Prompt Hub templates", on_phase):
@@ -194,6 +204,16 @@ def publish_assets(client, space: str, dataset: dict, model: str, on_phase=None)
         except OSError as exc:
             logger.warning("Could not save the partial Arize publication report (%s).", type(exc).__name__)
         raise
+    try:
+        with publication_step("Finding the Arize model integration for Eval Hub", on_phase):
+            integration_id = resolve_integration(client, space)
+            evaluators = build_evaluators(getenv("ARIZE_EVAL_MODEL", "").strip() or model)
+        for evaluator in evaluators:
+            with publication_step(f"Publishing Eval Hub evaluator {evaluator['name']}", on_phase):
+                summary["evaluators"].append(publish_evaluator(client, space, integration_id, evaluator))
+    except ArizePublicationError as exc:
+        summary["evaluator_publication_error"] = str(exc)
+        logger.warning("Arize evaluator publication failed (%s). %s", exc.error_type, exc)
     with publication_step(SAVE_REPORT, on_phase):
         save_report("assets", summary)
     return published_dataset, summary
@@ -238,13 +258,17 @@ def main():
     if args.export:
         cases, rules = load_dataset()
         dataset = build_dataset(cases, rules)
-        prompts = build_prompts(getenv("OPENAI_MODEL", "gpt-6-luna"))
-        args.export.write_text(json.dumps({"dataset": dataset, "prompts": prompts}, indent=2) + "\n", encoding="utf-8")
-        print(f"Exported {len(cases)} designs and {len(prompts)} prompts to {args.export}.")
+        model = getenv("OPENAI_MODEL", "gpt-6-luna")
+        prompts = build_prompts(model)
+        evaluators = build_evaluators(getenv("ARIZE_EVAL_MODEL", "").strip() or model)
+        bundle = {"dataset": dataset, "prompts": prompts, "evaluators": evaluators}
+        args.export.write_text(json.dumps(bundle, indent=2) + "\n", encoding="utf-8")
+        print(f"Exported {len(cases)} designs, {len(prompts)} prompts, and {len(evaluators)} evaluators to {args.export}.")
         return
 
     summary = publish_bundled_assets(space, api_key)
     print(json.dumps(summary, indent=2))
+    return 1 if summary.get("evaluator_publication_error") else 0
 
 
 if __name__ == "__main__":

@@ -151,10 +151,12 @@ function ArizeAssets({ assets, benchmark, publication }) {
   const report = assets.report;
   const experiment = benchmark.report;
   const prompts = report?.prompts ?? [];
+  const evaluators = report?.evaluators ?? [];
   const dataset = report ?? experiment;
   const startupMessage = {
-    running: 'Publishing the bundled dataset and prompt templates to Arize AX…',
+    running: 'Publishing the bundled dataset, prompts, and evaluators to Arize AX…',
     complete: 'Startup publication complete.',
+    partial: 'Startup published the dataset and prompts. See Eval Hub for evaluator status.',
     unconfigured: 'Configure Arize on the backend to publish assets on startup.',
     failed: publication?.message,
   }[publication?.status];
@@ -178,6 +180,16 @@ function ArizeAssets({ assets, benchmark, publication }) {
             {prompt.name}<code>Prompt {prompt.prompt_id} · Version {prompt.version_id}</code>
           </li>)}</ul>
         ) : 'No prompt publication recorded'} />
+        <Stat label="Eval Hub" value={
+          <>
+            {evaluators.length ? (
+              <ul>{evaluators.map(evaluator => <li key={evaluator.evaluator_id}>
+                {evaluator.name}<code>Evaluator {evaluator.evaluator_id} · Version {evaluator.version_id}</code>
+              </li>)}</ul>
+            ) : 'No evaluator publication recorded'}
+            {report?.evaluator_publication_error && <span>{report.evaluator_publication_error}</span>}
+          </>
+        } />
         <Stat label="Latest experiment" value={experiment?.experiment_id ? (
           <>{experiment.experiment_name}<code>{experiment.experiment_id}</code>
             {experiment.experiment_scores_published === false && <span>Score upload incomplete.</span>}

@@ -97,14 +97,14 @@ From the clone root, install the backend requirements, which include the evaluat
 .venv/bin/python -m backend.governance.evaluate --validate-only
 ```
 
-Set `ARIZE_SPACE_ID` for the destination Arize AX space and use a key authorized to manage prompts, datasets, and experiments there. Set that key as `ARIZE_EVAL_API_KEY` or use `ARIZE_API_KEY` for both evaluation and tracing. Set `OPENAI_API_KEY` for evidence extraction. The CLI uses the local Word standards and can run independently of the web app and Chroma. [Arize API key permissions](https://arize.com/docs/ax/security-and-settings/api-keys)
+Set `ARIZE_SPACE_ID` for the destination Arize AX space and use a key authorized to manage prompts, datasets, evaluators, and experiments there. Set that key as `ARIZE_EVAL_API_KEY` or use `ARIZE_API_KEY` for both evaluation and tracing. Set `OPENAI_API_KEY` for evidence extraction. The CLI uses the local Word standards and can run independently of the web app and Chroma. [Arize API key permissions](https://arize.com/docs/ax/security-and-settings/api-keys)
 
 ```sh
 .venv/bin/python -m backend.governance.evaluate --case SD-01
 .venv/bin/python -m backend.governance.evaluate
 ```
 
-The first command runs one design. The second runs all 24. Both publish or reuse the selected dataset and four Prompt Hub templates, run the app's extraction and gap assessment, and save the benchmark scores. The publisher creates the experiment with dataset example IDs and review outputs. It then uses Arize-issued run IDs to attach numeric scores as annotations, reusing or creating continuous `governance_*` annotation configs with a 0–1 range. Metrics without scores are omitted from the annotations. The publishing key needs permission to create experiments, manage annotation configs, and annotate experiment runs. If either publication step fails, the scored results stay visible on **Performance**. If experiment creation succeeds, the page also shows the experiment ID even if score attachment fails. The extraction step sends bundled design text and rules to OpenAI. [Arize experiment publishing](https://github.com/Arize-ai/arize-skills/blob/main/skills/arize-experiment/SKILL.md#annotate-runs-ax-experiments-annotate-runs)
+The first command runs one design. The second runs all 24. Both publish or reuse the selected dataset, four Prompt Hub templates, and 11 Eval Hub evaluators, run the app's extraction and gap assessment, and save the benchmark scores. The publisher creates the experiment with dataset example IDs and review outputs. It then uses Arize-issued run IDs to attach numeric scores as annotations, reusing or creating continuous `governance_*` annotation configs with a 0–1 range. Metrics without scores are omitted from the annotations. The publishing key needs permission to create experiments, manage annotation configs, and annotate experiment runs. If either publication step fails, the scored results stay visible on **Performance**. If experiment creation succeeds, the page also shows the experiment ID even if score attachment fails. The extraction step sends bundled design text and rules to OpenAI. [Arize experiment publishing](https://github.com/Arize-ai/arize-skills/blob/main/skills/arize-experiment/SKILL.md#annotate-runs-ax-experiments-annotate-runs)
 
 The benchmark treats all 75 rows in the workbook's **Expected findings** sheet as evidence gaps, including planted contradictions and missing sections. It maps business criticality tiers 1, 2, and 3 to high, medium, and low declared risk, and derives the expected assessed tier from the declared tier and labeled gaps. Suggested approval outcomes remain reference labels. The benchmark scores the automated assessment before the human approval steps.
 
@@ -117,7 +117,7 @@ Install the backend requirements and set a private `PERFORMANCE_RUN_TOKEN` on th
 | Dashboard action | API endpoint | Requirements |
 | --- | --- | --- |
 | **Run AI benchmark** | `POST /api/performance/benchmark?scope=smoke` or `scope=full` | OpenAI key, Arize publishing credentials, and evaluation dependencies. |
-| **Publish Arize assets** | `POST /api/performance/publish` | Arize publishing credentials and evaluation dependencies. Publishes the full dataset and Prompt Hub templates. |
+| **Publish Arize assets** | `POST /api/performance/publish` | Arize publishing credentials and evaluation dependencies. Publishes the full dataset, Prompt Hub templates, and Eval Hub evaluators. |
 | **Run application tests** | `POST /api/performance/tests` | Backend dependencies and `httpx`. The suite runs in an isolated Python process and saves successful checks, distinct failed checks, and skips. |
 | **Validate benchmark fixtures** | `POST /api/performance/fixtures` | The Excel reader from the backend requirements. Validates the full bundle and saves fixture counts. |
 
@@ -133,9 +133,22 @@ Reports are saved in the ignored `.performance/` directory at the clone root by 
 
 On Railway with `/backend` as the service root, redeploy with the updated `requirements.txt` and configured backend variables.
 
-## Publish the dataset and prompts
+## Publish Arize assets
 
-When the backend starts with Arize credentials, it publishes or reuses the full benchmark dataset and four Prompt Hub templates in the background. The dashboard displays progress and records publication IDs. A publishing error appears in the dashboard and backend logs while the application continues serving requests. Startup uses the bundled design IDs, answer labels, and prompt templates. OpenAI calls and experiment creation occur when a benchmark is run.
+When the backend starts with Arize credentials, it publishes or reuses the full benchmark dataset, four Prompt Hub templates, and 11 Eval Hub evaluators in the background. The dashboard displays progress and records publication IDs. A publishing error appears in the dashboard and backend logs while the application continues serving requests. Startup uses the bundled design IDs, answer labels, and prompt and evaluator templates. OpenAI calls and experiment creation occur when a benchmark is run.
+
+Seven Eval Hub templates provide reusable LLM-based pass/fail checks for unexpected gaps, missed gaps, exact gap-set agreement, risk tier, rule coverage, rule citations, and source citations. The benchmark computes its numeric metrics in Python. The gap and risk templates take the review result as `output` and the dataset's `attributes.output.value` as `reference`. Coverage and rule citations require a full `review` and approved `rules`. Source citations require `review`, design `sections`, and `supporting_documents` keyed by document hash. Use an empty map for supporting documents when the review has none. The published benchmark rows contain condensed review outputs, so the coverage and citation templates need a data source with the additional inputs. [Arize Eval Hub](https://arize.com/docs/ax/evaluate/evaluators)
+
+Four additional Eval Hub templates check individual prompts. To run one in Arize, map `payload` to the original JSON passed to the prompt and `output` to the model's structured response. Use a data source that contains both fields. The bundled dataset and application traces do not capture prompt payloads and responses.
+
+| Prompt | What its evaluator checks |
+| --- | --- |
+| Evidence extraction | Verbatim citations, exact source labels, and support for each rule in the supplied document. |
+| Passage extraction | The same evidence checks, limited to the passages assigned to each rule. |
+| Gap guidance | A grounded description of the remaining gap and a concrete, rule-aligned next step. |
+| Review judge | Ratings in the expected range and a rationale supported by the review, source, and human answer key. |
+
+In Arize, configure an OpenAI integration available to the target space. The backend uses it automatically when there is exactly one. Set `ARIZE_EVAL_INTEGRATION_ID` in the FastAPI service's variables to select a specific integration or when the key lacks integration listing permission. Set `ARIZE_EVAL_MODEL` if the integration uses a different model from `OPENAI_MODEL`. The publishing key needs evaluator write access and, for automatic selection, integration read access. The dashboard shows the evaluator publication status separately so you can still run the benchmark if the integration or evaluator publication needs attention. [Arize evaluator setup](https://arize.com/docs/ax/evaluate/tutorial/custom-llm-as-a-judge)
 
 For a publishing failure, the dashboard identifies the failed step and shows the Arize HTTP status when available. HTTP 401 indicates that Arize rejected the configured key. For HTTP 403, check the publishing key's permissions in the destination space. HTTP 422 includes recognized validation field names and the Arize request ID when the API supplies them. If the dashboard says Arize assets were published and the report could not be saved, check that `PERFORMANCE_REPORT_DIR` is writable by the FastAPI process. The publishing requests finish before the dashboard saves the report. [Arize service key permissions](https://arize.com/docs/ax/security-and-settings/service-keys)
 
@@ -151,7 +164,7 @@ To publish the same assets outside the running application, run the publisher fr
 .venv/bin/python -m backend.governance.evaluation.publish --env-file /path/to/.env
 ```
 
-The command publishes the benchmark dataset, full-document evidence extraction, passage evidence extraction, gap guidance, and the optional review judge. It prints the dataset, prompt, and version IDs. Reruns reuse the same dataset and latest matching prompt versions. The dataset contains design IDs and answer labels. The benchmark reads the design text from the local Word files.
+The command publishes the benchmark dataset, full-document evidence extraction, passage evidence extraction, gap guidance, and the optional review judge. It also publishes the 11 Eval Hub evaluators and prints the dataset, prompt, evaluator, and version IDs. Reruns reuse the same dataset and latest matching prompt and evaluator versions. The dataset contains design IDs and answer labels. The benchmark reads the design text from the local Word files.
 
 Use the `payload` variable in Prompt Hub to pass the JSON input for a template. The extraction prompts accept `rules` and either `document` or `passages`. The guidance prompt accepts `rule` and `design_passages`. The judge accepts `findings`, `risk_tier`, `answer_key`, and `source`. The local export includes the response schemas the app applies when it calls OpenAI.
 
@@ -189,7 +202,9 @@ Set these variables on the **FastAPI service** in Railway and redeploy. For loca
 | --- | --- | --- |
 | Arize AX | `ARIZE_SPACE_ID` | Space ID from Arize AX Settings → API Keys |
 | Arize AX | `ARIZE_API_KEY` | API key for that space |
-| Arize AX | `ARIZE_EVAL_API_KEY` | Optional key for publishing datasets, prompts, and experiments. Defaults to using `ARIZE_API_KEY`. |
+| Arize AX | `ARIZE_EVAL_API_KEY` | Optional key for publishing datasets, prompts, evaluators, and experiments. Defaults to using `ARIZE_API_KEY`. |
+| Arize AX | `ARIZE_EVAL_INTEGRATION_ID` | Optional OpenAI integration ID in Arize. By default the backend looks for one OpenAI integration in the target space. |
+| Arize AX | `ARIZE_EVAL_MODEL` | Optional model for Eval Hub. Defaults to `OPENAI_MODEL`. |
 | Arize AX | `ARIZE_PROJECT_NAME` | Trace project name. Defaults to `archgovasst`. |
 | Arize AX | `ARIZE_COLLECTOR_ENDPOINT` | Optional collector endpoint for your Arize deployment |
 | Arize AX | `ARIZE_REGION` | Optional regional SDK endpoint, such as `eu-west-1a`. Match the region of the Arize space. |

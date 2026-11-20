@@ -20,7 +20,7 @@ Expand a **Not evidenced** finding and select **Suggest next step** for AI-gener
 
 ## View AI system performance
 
-Select **Performance** in the header to open `/performance`. Overview tiles show the latest design, prompt, and test counts. The AI benchmark tiles show quality scores when a run completes, alongside model, retrieval mode, and per-design results. The **Arize AX assets** panel shows startup publication progress, the space, dataset, Prompt Hub versions, and latest experiment.
+Select **Performance** in the header to open `/performance`. Overview tiles show the latest design, prompt, and test counts. The AI benchmark tiles show quality scores when a run completes, alongside model, retrieval mode, and per-design results. The **Arize AX assets** panel shows startup publication progress, the space, dataset, Prompt Hub versions, Eval Hub versions and publication errors, and latest experiment.
 
 During a benchmark, the page shows the number of designs reviewed, experiment creation, and score attachment. If Arize rejects either request, the scored results stay visible and the action panel reports the failed step. When only score attachment fails, the Arize panel keeps the created experiment ID.
 

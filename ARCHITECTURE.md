@@ -6,7 +6,7 @@ Select the diagram to open the full-resolution image.
 
 The review runs through six LangGraph nodes with two human decisions. Chroma stores versioned standards. Live review state resides in backend memory until a restart. The image shows single-report evaluation. The [Arize AX benchmark workflow](flowdiagrams.md#arize-ax-benchmark) uses the bundled designs, standards, and answer workbook to evaluate extraction and gap assessment in batches.
 
-The [performance reporting workflow](flowdiagrams.md#performance-dashboard) connects the benchmark and application checks to the separate `/performance` page. At startup, FastAPI publishes the full benchmark dataset and templates to Arize AX in the background when configured. Token-authorized actions can run the benchmark, publish assets, run backend tests in a separate Python process, or validate fixtures. FastAPI reads the latest summaries from disk as the page polls for progress.
+The [performance reporting workflow](flowdiagrams.md#performance-dashboard) connects the benchmark and application checks to the separate `/performance` page. At startup, FastAPI publishes the full benchmark dataset, Prompt Hub templates, and Eval Hub evaluators to Arize AX in the background when configured. Token-authorized actions can run the benchmark, publish assets, run backend tests in a separate Python process, or validate fixtures. FastAPI reads the latest summaries from disk as the page polls for progress.
 
 ## Diagram colors
 

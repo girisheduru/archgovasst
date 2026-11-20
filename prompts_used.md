@@ -37,3 +37,7 @@ The application also sends two text formats to OpenAI's embeddings API to genera
 
 - **Standards import.** Sends each rule's quote followed by a newline and its evidence requirement. The resulting vector is stored with the rule version in Chroma. [Standards ingestion](backend/governance/standards_store/ingestion.py#L31-L48)
 - **Design passage ranking.** Sends each passage's section texts joined by newlines. In the same batch it sends each rule's quote followed by a newline and its evidence requirement. The ranking code combines semantic and keyword scores before selecting passages. [Passage ranking](backend/governance/agent/retrieval.py#L51-L75)
+
+## Arize Eval Hub templates
+
+The asset publisher registers a pass/fail evaluator for each of the four prompts above. Each takes the original prompt payload and model response. Their definitions and input variables are available in the local asset export alongside the seven benchmark checks. [Evaluator definitions](backend/governance/evaluation/evaluators.py), [Publication and inputs](backend/README.md#publish-arize-assets)

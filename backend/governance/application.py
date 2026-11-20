@@ -31,9 +31,11 @@ async def publish_startup_assets(app: FastAPI, space: str, api_key: str):
         status = getattr(exc, "status", getattr(exc, "status_code", None))
         logger.warning("Arize startup publication failed (%s, status %s).", type(exc).__name__, status)
     else:
-        app.state.arize_publication = {"status": "complete"}
-        logger.info("Arize startup publication registered dataset %s and %d prompts.",
-                    summary["dataset_id"], len(summary["prompts"]))
+        app.state.arize_publication = {
+            "status": "partial" if summary.get("evaluator_publication_error") else "complete",
+        }
+        logger.info("Arize startup publication registered dataset %s, %d prompts, and %d evaluators.",
+                    summary["dataset_id"], len(summary["prompts"]), len(summary["evaluators"]))
 
 
 @asynccontextmanager
