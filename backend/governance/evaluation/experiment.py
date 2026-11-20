@@ -3,6 +3,7 @@
 import json
 from datetime import UTC, datetime
 from hashlib import sha256
+from math import isfinite
 from os import getenv
 from threading import Lock
 from time import perf_counter
@@ -130,22 +131,43 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
 
 
 def publish_experiment(client, report: dict, results):
-    from arize.experiments.evaluators.types import EvaluationResultFieldNames
     from arize.experiments.types import ExperimentTaskFieldNames
 
-    columns = ["example_id", "output"]
-    evaluators = {}
-    for metric in METRICS:
-        score = f"eval.{metric}.score"
-        label = f"eval.{metric}.label"
-        # Pass the documented task and evaluator fields. The runner also returns trace and execution metadata.
-        columns.extend((score, label))
-        evaluators[metric] = EvaluationResultFieldNames(score=score, label=label)
     return client.experiments.create(
         name=report["experiment_name"],
         dataset=report["dataset_id"],
-        experiment_runs=results.loc[:, columns],
+        experiment_runs=results.loc[:, ["example_id", "output"]],
         task_fields=ExperimentTaskFieldNames(example_id="example_id", output="output"),
-        evaluator_columns=evaluators,
         force_http=True,
     )
+
+
+def publish_experiment_scores(client, experiment_id: str, space: str, results):
+    from arize.experiments.types import AnnotateRecordInput, AnnotationInput
+
+    scores_by_example = {row["example_id"]: row for row in results.to_dict(orient="records")}
+    runs = client.experiments.list_runs(experiment=experiment_id, limit=len(scores_by_example)).experiment_runs or []
+    if len(runs) != len(scores_by_example) or {run.example_id for run in runs if run.id} != scores_by_example.keys():
+        raise ValueError("Arize did not return a run ID for every scored dataset example.")
+    annotations = []
+    score_names = set()
+    for run in runs:
+        row = scores_by_example[run.example_id]
+        values = []
+        for metric in METRICS:
+            score = row[f"eval.{metric}.score"]
+            if score is not None and isfinite(score):
+                name = f"governance_{metric}"
+                score_names.add(name)
+                values.append(AnnotationInput(name=name, score=float(score)))
+        if values:
+            annotations.append(AnnotateRecordInput(record_id=run.id, values=values))
+    for name in sorted(score_names):
+        configs = client.annotation_configs.list(name=name, space=space).annotation_configs or []
+        config = next((item for item in configs if item.name == name), None)
+        if config is None:
+            client.annotation_configs.create_continuous(name=name, space=space, minimum_score=0, maximum_score=1)
+        elif (getattr(config, "minimum_score", None), getattr(config, "maximum_score", None)) != (0, 1):
+            raise ValueError("An existing Arize score annotation has an incompatible range or type.")
+    if annotations:
+        client.experiments.annotate_runs(experiment=experiment_id, annotations=annotations)

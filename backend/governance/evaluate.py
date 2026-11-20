@@ -10,7 +10,7 @@ from typing import Callable
 
 from .agent.documents import parse_document
 from .evaluation.dataset import load_dataset
-from .evaluation.experiment import build_dataset, publish_experiment, run
+from .evaluation.experiment import build_dataset, publish_experiment, publish_experiment_scores, run
 from .evaluation.judge import judge
 from .evaluation.metrics import AnswerKey, evaluate
 from .evaluation.publish import arize_api_key, connect_arize, publication_step, publish_assets
@@ -59,11 +59,16 @@ def run_benchmark(cases, rules, available_case_count, name=None, on_phase: Calla
     if on_phase:
         on_phase("Saving benchmark scores")
     save_report("benchmark", output)
-    with publication_step("Publishing the experiment to Arize", on_phase):
+    with publication_step("Creating the Arize experiment", on_phase):
         experiment = publish_experiment(client, summary, results)
     output["experiment_id"] = experiment.id
+    output["experiment_scores_published"] = False
+    save_report("benchmark", output)
+    with publication_step("Attaching scores to the Arize experiment", on_phase):
+        publish_experiment_scores(client, experiment.id, space, results)
+    output["experiment_scores_published"] = True
     if on_phase:
-        on_phase("Saving the Arize experiment ID")
+        on_phase("Saving the Arize publication status")
     save_report("benchmark", output)
     return output
 

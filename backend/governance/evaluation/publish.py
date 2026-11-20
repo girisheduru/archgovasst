@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 from contextlib import contextmanager
 from hashlib import sha256
 from logging import getLogger
@@ -21,6 +22,26 @@ SAVE_REPORT = "Saving the Arize publication report"
 LIST_DATASETS = "Listing datasets in the configured space"
 
 
+def validation_summary(cause: Exception) -> str:
+    # Keep diagnostic field names and the request ID. Arize can echo input in the response body.
+    body = getattr(cause, "body", None)
+    fields = []
+    if isinstance(body, str):
+        fields = sorted(set(re.findall(
+            r"\b(?:dataset_id|dataset_version_id|space_id|experiment_runs|example_id|output|"
+            r"record_id|annotations|minimum_score|maximum_score)\b",
+            body[:16000],
+        )))
+    headers = getattr(cause, "headers", None)
+    request_id = headers.get("x-request-id") if headers else None
+    details = []
+    if fields:
+        details.append(f"Arize mentioned {', '.join(fields)} in its response.")
+    if isinstance(request_id, str) and re.fullmatch(r"[a-zA-Z0-9_-]{8,80}", request_id):
+        details.append(f"Arize request ID {request_id}.")
+    return " ".join(details)
+
+
 class ArizePublicationError(RuntimeError):
     def __init__(self, phase: str, cause: Exception):
         self.phase = phase
@@ -36,7 +57,7 @@ class ArizePublicationError(RuntimeError):
             403: "Arize denied access. Set ARIZE_EVAL_API_KEY to a key with publishing permissions in the configured space.",
             404: "Arize could not find the resource. Check ARIZE_SPACE_ID and the Arize region.",
             409: "Arize reported a conflict. Retry after any other publication finishes.",
-            422: "Arize rejected the request. Check the configured space and the backend SDK version.",
+            422: f"Arize rejected the request during validation. {validation_summary(cause)}".strip(),
             429: "Arize rate limited the request. Try again shortly.",
         }.get(self.status, "Check the backend logs.")
         if phase == SAVE_REPORT:

@@ -270,8 +270,9 @@ flowchart LR
     SDK --> Review
     Review --> Score["Score gaps, risk, coverage, and citations locally"]
     Score --> Reports["Save dashboard scores"]
-    Reports --> Upload["Upload dataset example IDs, outputs, and evaluation fields"]
-    Upload --> AX["Per-design experiment results in Arize AX"]
+    Reports --> Upload["Create experiment with dataset example IDs and outputs"]
+    Upload --> Annotate["Attach numeric scores by Arize run ID"]
+    Annotate --> AX["Per-design experiment results in Arize AX"]
 ```
 
 ## Performance dashboard

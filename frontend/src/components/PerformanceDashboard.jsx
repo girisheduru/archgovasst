@@ -180,6 +180,7 @@ function ArizeAssets({ assets, benchmark, publication }) {
         ) : 'No prompt publication recorded'} />
         <Stat label="Latest experiment" value={experiment?.experiment_id ? (
           <>{experiment.experiment_name}<code>{experiment.experiment_id}</code>
+            {experiment.experiment_scores_published === false && <span>Score upload incomplete.</span>}
             {dataset?.dataset_id !== experiment.dataset_id && <code>Dataset {experiment.dataset_id}</code>}</>
         ) : experiment ? 'Benchmark scores saved. Arize experiment ID unavailable.' : 'No completed benchmark recorded'} />
       </dl>

@@ -55,6 +55,7 @@ class PerformanceTests(unittest.TestCase):
         self.upload = self.enterContext(patch.object(
             evaluate, "publish_experiment", return_value=SimpleNamespace(id="experiment-id"),
         ))
+        self.score_upload = self.enterContext(patch.object(evaluate, "publish_experiment_scores"))
         with patch.object(application, "arize_api_key", return_value=""):
             self.client = self.enterContext(TestClient(app))
         self.headers = {"Authorization": "Bearer run-token"}
@@ -72,6 +73,7 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(len(result["assets"]["report"]["prompts"]), 4)
         self.assertEqual(result["fixtures"]["report"]["case_count"], 2)
         self.assertEqual(result["benchmark"]["report"]["experiment_id"], "experiment-id")
+        self.assertTrue(result["benchmark"]["report"]["experiment_scores_published"])
         self.assertEqual(result["benchmark"]["report"]["available_case_count"], 2)
 
     def test_failed_experiment_keeps_published_assets_visible(self):
@@ -90,17 +92,32 @@ class PerformanceTests(unittest.TestCase):
     def test_smoke_scores_remain_visible_if_arize_rejects_the_experiment_upload(self):
         rejected = RuntimeError("private provider details")
         rejected.status = 422
+        rejected.body = '{"detail":[{"loc":["body","experiment_runs",0,"example_id"],"input":"private example"}]}'
+        rejected.headers = {"x-request-id": "arize-test-123"}
         self.upload.side_effect = rejected
         with self.assertLogs(performance.__name__, level="ERROR"):
             response = self.client.post("/api/performance/benchmark", headers=self.headers)
         self.assertEqual(response.status_code, 202)
 
         result = self.client.get("/api/performance").json()
-        self.assertEqual(result["job"]["phase"], "Publishing the experiment to Arize")
+        self.assertEqual(result["job"]["phase"], "Creating the Arize experiment")
         self.assertEqual(result["job"]["status"], "failed")
         self.assertIn("HTTP 422", result["job"]["message"])
+        self.assertIn("example_id", result["job"]["message"])
+        self.assertIn("arize-test-123", result["job"]["message"])
+        self.assertNotIn("private example", result["job"]["message"])
         self.assertEqual(result["benchmark"]["report"]["mean_scores"]["gap_precision"], 0.8)
         self.assertNotIn("experiment_id", result["benchmark"]["report"])
+
+    def test_failed_score_attachment_keeps_the_created_experiment_id(self):
+        self.score_upload.side_effect = RuntimeError("private provider details")
+        with self.assertLogs(performance.__name__, level="ERROR"):
+            response = self.client.post("/api/performance/benchmark", headers=self.headers)
+        self.assertEqual(response.status_code, 202)
+        result = self.client.get("/api/performance").json()
+        self.assertEqual(result["job"]["phase"], "Attaching scores to the Arize experiment")
+        self.assertEqual(result["benchmark"]["report"]["experiment_id"], "experiment-id")
+        self.assertFalse(result["benchmark"]["report"]["experiment_scores_published"])
 
     def test_start_requires_token_and_rejects_an_overlapping_run(self):
         url = "/api/performance/benchmark"
@@ -261,11 +278,10 @@ class PerformanceTests(unittest.TestCase):
 
 
 class ExperimentUploadTests(unittest.TestCase):
-    def test_upload_selects_only_documented_task_and_evaluator_fields(self):
+    def test_create_uploads_only_example_ids_and_outputs(self):
         client = Mock()
         results = MagicMock()
         with patch.dict("sys.modules", {
-            "arize.experiments.evaluators.types": SimpleNamespace(EvaluationResultFieldNames=SimpleNamespace),
             "arize.experiments.types": SimpleNamespace(ExperimentTaskFieldNames=SimpleNamespace),
         }):
             experiment.publish_experiment(client, {
@@ -275,10 +291,32 @@ class ExperimentUploadTests(unittest.TestCase):
         arguments = client.experiments.create.call_args.kwargs
         row_selector, columns = results.loc.__getitem__.call_args.args[0]
         self.assertEqual(row_selector, slice(None))
-        self.assertEqual(columns[:2], ["example_id", "output"])
-        self.assertEqual(set(columns[2:]), {
-            f"eval.{metric}.{field}" for metric in experiment.METRICS for field in ("score", "label")
-        })
+        self.assertEqual(columns, ["example_id", "output"])
         self.assertIs(arguments["experiment_runs"], results.loc.__getitem__.return_value)
         self.assertEqual(arguments["dataset"], "dataset-id")
-        self.assertEqual(set(arguments["evaluator_columns"]), set(experiment.METRICS))
+        self.assertNotIn("evaluator_columns", arguments)
+
+    def test_annotates_by_run_id_and_omits_unavailable_scores(self):
+        client = Mock()
+        client.experiments.list_runs.return_value.experiment_runs = [
+            SimpleNamespace(id="run-2", example_id="example-2"),
+            SimpleNamespace(id="run-1", example_id="example-1"),
+        ]
+        client.annotation_configs.list.return_value.annotation_configs = []
+        results = Mock()
+        results.to_dict.return_value = [
+            {"example_id": example_id, **{f"eval.{metric}.score": score if metric == "gap_precision" else float("nan")
+                                         for metric in experiment.METRICS}}
+            for example_id, score in (("example-1", 0.9), ("example-2", 0))
+        ]
+        with patch.dict("sys.modules", {
+            "arize.experiments.types": SimpleNamespace(AnnotateRecordInput=SimpleNamespace, AnnotationInput=SimpleNamespace),
+        }):
+            experiment.publish_experiment_scores(client, "experiment-id", "space-id", results)
+
+        annotations = client.experiments.annotate_runs.call_args.kwargs["annotations"]
+        self.assertEqual([(item.record_id, [value.score for value in item.values]) for item in annotations],
+                         [("run-2", [0.0]), ("run-1", [0.9])])
+        client.annotation_configs.create_continuous.assert_called_once_with(
+            name="governance_gap_precision", space="space-id", minimum_score=0, maximum_score=1,
+        )

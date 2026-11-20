@@ -103,7 +103,7 @@ def run_job(action: Action, scope: Literal["smoke", "full"]):
                     cases = {case_id: cases[case_id]}
                 run_benchmark(cases, rules, available_case_count, on_phase=lambda phase: update_job("running", phase))
     except ArizePublicationError as exc:
-        logger.error("Arize publication failed during %s (%s, status %s).", exc.phase, exc.error_type, exc.status)
+        logger.error("Arize publication failed (%s). %s", exc.error_type, exc)
         update_job("failed", exc.phase, str(exc))
     except Exception as exc:
         phase = job["phase"]
