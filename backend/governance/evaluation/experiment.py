@@ -130,7 +130,8 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
 
 
 def publish_experiment(client, report: dict, results):
-    from arize.experiments.types import EvaluationResultFieldNames, ExperimentTaskFieldNames
+    from arize.experiments.evaluators.types import EvaluationResultFieldNames
+    from arize.experiments.types import ExperimentTaskFieldNames
 
     columns = ["example_id", "output"]
     evaluators = {}

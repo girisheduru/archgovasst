@@ -42,8 +42,10 @@ class ArizePublicationError(RuntimeError):
         if phase == SAVE_REPORT:
             message = "Arize assets were published. Set PERFORMANCE_REPORT_DIR to a directory the backend can write to so the dashboard can display the IDs."
         else:
-            if isinstance(cause, ImportError):
+            if isinstance(cause, ModuleNotFoundError):
                 hint = "Install the backend requirements and redeploy."
+            elif isinstance(cause, ImportError):
+                hint = "An installed backend dependency could not load a required interface. Check the backend SDK version and deployment logs."
             elif phase == "Loading bundled benchmark fixtures":
                 hint = "Check that the deployment includes backend/datadocs and run Validate benchmark fixtures."
             elif self.error_type in ("NotFoundError", "AmbiguousNameError"):

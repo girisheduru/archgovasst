@@ -264,11 +264,10 @@ class ExperimentUploadTests(unittest.TestCase):
     def test_upload_selects_only_documented_task_and_evaluator_fields(self):
         client = Mock()
         results = MagicMock()
-        types = SimpleNamespace(
-            EvaluationResultFieldNames=SimpleNamespace,
-            ExperimentTaskFieldNames=SimpleNamespace,
-        )
-        with patch.dict("sys.modules", {"arize.experiments.types": types}):
+        with patch.dict("sys.modules", {
+            "arize.experiments.evaluators.types": SimpleNamespace(EvaluationResultFieldNames=SimpleNamespace),
+            "arize.experiments.types": SimpleNamespace(ExperimentTaskFieldNames=SimpleNamespace),
+        }):
             experiment.publish_experiment(client, {
                 "dataset_id": "dataset-id", "experiment_name": "smoke",
             }, results)
