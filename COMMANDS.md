@@ -44,12 +44,15 @@ Run from the clone root with the backend dependencies installed. The [backend gu
 | `.venv/bin/python -m pip install -r backend/requirements-eval.txt` | Installs the evaluation dependencies separately for an existing environment. The normal backend requirements also install them. |
 | `.venv/bin/python -m backend.governance.evaluation.publish --export arize-governance.json` | Writes the Arize dataset and prompt templates locally. Requires the evaluation dependencies. |
 | `.venv/bin/python -m backend.governance.evaluation.publish --env-file /path/to/.env` | Publishes the full dataset and Prompt Hub templates outside the running app. Requires the evaluation dependencies and `ARIZE_SPACE_ID` plus either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY`. Omit the flag if the values are already set in the shell. |
+| `.venv/bin/python -m backend.governance.evaluation.publish --check-auth` | Checks Arize authentication with a dataset list request. Requires the evaluation dependencies and Arize variables. Prints the API host and selected variable name without its value. |
 | `.venv/bin/python -m backend.governance.evaluate --validate-only` | Verifies that the workbook, Word standards, and designs agree without calling external services and saves the validation summary for **Performance**. Requires the evaluation dependencies. |
 | `.venv/bin/python -m backend.governance.evaluate --case SD-01` | Publishes the dataset and Prompt Hub templates, runs a one-design Arize AX experiment, and saves the results for **Performance**. Requires the evaluation dependencies, `ARIZE_SPACE_ID`, `OPENAI_API_KEY`, and `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY` in the shell. Repeat `--case` to select multiple designs. |
 | `.venv/bin/python -m backend.governance.evaluate` | Runs the complete 24-design benchmark with the same prerequisites. Use `--experiment NAME` to name the run. |
 | `.venv/bin/python -m backend.governance.evaluate /path/to/review.json /path/to/design.pdf /path/to/answer-key.json` | Scores a previously exported report. Requires a Chroma connection. Add `--supporting-document PATH` for each cited supporting file. Append `--judge` for optional OpenAI scoring with `OPENAI_API_KEY`. |
 
 The **Performance** page offers buttons for the benchmark, publishing, application tests, and fixture validation. The buttons share a backend-configured `PERFORMANCE_RUN_TOKEN`. The commands remain available for terminal and CI use. [Backend reporting setup](backend/README.md#performance-dashboard)
+
+To check the active Railway credentials, open the FastAPI container with its **Copy SSH Command** entry in Railway. From the service root when Railway deploys `/backend`, run `python -m governance.evaluation.publish --check-auth`. The container uses the environment and dependencies of the deployed service. [Railway SSH](https://docs.railway.com/cli/ssh)
 
 ## Run the sample review backend
 

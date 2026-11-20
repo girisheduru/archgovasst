@@ -269,7 +269,9 @@ flowchart LR
     Docs["Local sample designs and Word standards"] --> Review["Extract evidence with OpenAI and assess gaps"]
     SDK --> Review
     Review --> Score["Score gaps, risk, coverage, and citations locally"]
-    Score --> AX["Per-design experiment results in Arize AX"]
+    Score --> Reports["Save dashboard scores"]
+    Reports --> Upload["Upload dataset example IDs, outputs, and evaluation fields"]
+    Upload --> AX["Per-design experiment results in Arize AX"]
 ```
 
 ## Performance dashboard

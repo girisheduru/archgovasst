@@ -10,10 +10,10 @@ from typing import Callable
 
 from .agent.documents import parse_document
 from .evaluation.dataset import load_dataset
-from .evaluation.experiment import build_dataset, run
+from .evaluation.experiment import build_dataset, publish_experiment, run
 from .evaluation.judge import judge
 from .evaluation.metrics import AnswerKey, evaluate
-from .evaluation.publish import arize_api_key, connect_arize, publish_assets
+from .evaluation.publish import arize_api_key, connect_arize, publication_step, publish_assets
 from .performance import save_report
 from .standards_store.catalog import load_rules
 
@@ -54,10 +54,17 @@ def run_benchmark(cases, rules, available_case_count, name=None, on_phase: Calla
     model = getenv("OPENAI_MODEL", "gpt-6-luna")
     client = connect_arize(arize_api_key(), on_phase)
     dataset, assets = publish_assets(client, space, build_dataset(cases, rules), model, on_phase=on_phase)
+    summary, results = run(client, dataset, cases, rules, model, name, on_phase=on_phase)
+    output = {**assets, **summary, "available_case_count": available_case_count}
     if on_phase:
-        on_phase("Running AI evaluation and publishing experiment")
-    output = {**assets, **run(client, dataset, cases, rules, model, name)}
-    save_report("benchmark", {**output, "available_case_count": available_case_count})
+        on_phase("Saving benchmark scores")
+    save_report("benchmark", output)
+    with publication_step("Publishing the experiment to Arize", on_phase):
+        experiment = publish_experiment(client, summary, results)
+    output["experiment_id"] = experiment.id
+    if on_phase:
+        on_phase("Saving the Arize experiment ID")
+    save_report("benchmark", output)
     return output
 
 

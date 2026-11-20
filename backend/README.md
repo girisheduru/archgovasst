@@ -104,7 +104,7 @@ Set `ARIZE_SPACE_ID` for the destination Arize AX space and use a key authorized
 .venv/bin/python -m backend.governance.evaluate
 ```
 
-The first command runs one design. The second runs all 24. Both publish or reuse the selected dataset and four Prompt Hub templates, then run the app's extraction and gap assessment and save a per-design experiment in Arize AX. The CLI prints the space, dataset, prompt version, and experiment IDs and mean scores. In the same Arize space, look for the templates in Prompt Hub and the experiment under its dataset. Arize receives prompt templates, design IDs, expected and predicted rule IDs, risk and outcome labels, and scores. The extraction step sends bundled design text and rules to OpenAI.
+The first command runs one design. The second runs all 24. Both publish or reuse the selected dataset and four Prompt Hub templates, run the app's extraction and gap assessment, and save the benchmark scores before uploading the per-design experiment. The upload maps the dataset example IDs, review outputs, and evaluation scores or labels to the Arize experiment fields. If Arize rejects the upload, the scores remain available on **Performance** and the dashboard reports the publication error. In Arize, find the templates in Prompt Hub and a successfully published experiment under its dataset. The extraction step sends bundled design text and rules to OpenAI. [Arize experiment creation](https://arize-client-python.readthedocs.io/en/latest/experiments.html#arize.experiments.client.ExperimentsClient.create)
 
 The benchmark treats all 75 rows in the workbook's **Expected findings** sheet as evidence gaps, including planted contradictions and missing sections. It maps business criticality tiers 1, 2, and 3 to high, medium, and low declared risk, and derives the expected assessed tier from the declared tier and labeled gaps. Suggested approval outcomes remain reference labels. The benchmark scores the automated assessment before the human approval steps.
 
@@ -118,7 +118,7 @@ Install the backend requirements and set a private `PERFORMANCE_RUN_TOKEN` on th
 | --- | --- | --- |
 | **Run AI benchmark** | `POST /api/performance/benchmark?scope=smoke` or `scope=full` | OpenAI key, Arize publishing credentials, and evaluation dependencies. |
 | **Publish Arize assets** | `POST /api/performance/publish` | Arize publishing credentials and evaluation dependencies. Publishes the full dataset and Prompt Hub templates. |
-| **Run application tests** | `POST /api/performance/tests` | Backend dependencies and `httpx`. The suite runs in an isolated Python process and saves pass or fail counts. |
+| **Run application tests** | `POST /api/performance/tests` | Backend dependencies and `httpx`. The suite runs in an isolated Python process and saves successful checks, distinct failed checks, and skips. |
 | **Validate benchmark fixtures** | `POST /api/performance/fixtures` | The Excel reader from the backend requirements. Validates the full bundle and saves fixture counts. |
 
 Set `ARIZE_SPACE_ID` and either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY` for publication and benchmarks. The same settings enable startup publication. Both local checks can run without Arize or OpenAI configuration.
@@ -138,6 +138,10 @@ On Railway with `/backend` as the service root, redeploy with the updated `requi
 When the backend starts with Arize credentials, it publishes or reuses the full benchmark dataset and four Prompt Hub templates in the background. The dashboard displays progress and records publication IDs. A publishing error appears in the dashboard and backend logs while the application continues serving requests. Startup uses the bundled design IDs, answer labels, and prompt templates. OpenAI calls and experiment creation occur when a benchmark is run.
 
 For a publishing failure, the dashboard identifies the failed step and shows the Arize HTTP status when available. HTTP 401 indicates that Arize rejected the configured key. For HTTP 403, check the publishing key's permissions in the destination space. If the dashboard says Arize assets were published and the report could not be saved, check that `PERFORMANCE_REPORT_DIR` is writable by the FastAPI process. The publishing requests finish before the dashboard saves the report. [Arize service key permissions](https://arize.com/docs/ax/security-and-settings/service-keys)
+
+For a recurring HTTP 401, run the read-only authentication check in the deployed FastAPI container so it uses the active Railway variables. From a shell in the service with `/backend` as its project root, run `python -m governance.evaluation.publish --check-auth`. The check prints the credential variable name, the SDK's API host, and the result of listing datasets in the configured space. It omits the key and response payload. A successful lookup confirms read authentication. A subsequent failure during dataset creation identifies the write request separately. [Railway SSH](https://docs.railway.com/cli/ssh)
+
+For a regional Arize deployment, match `ARIZE_REGION` to the Arize space, such as `eu-west-1a` for the EU West endpoint. The SDK resolves this independently of the trace collector setting. [Arize REST regions](https://arize.com/docs/ax/rest-reference/overview), [SDK regions](https://arize-client-python.readthedocs.io/en/v8.60.0/config.html#arize.config.Region)
 
 To publish the same assets outside the running application, run the publisher from the clone root with the evaluation dependencies installed. The environment file supplies `ARIZE_SPACE_ID` and either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY`. It can also set `OPENAI_MODEL` for the Prompt Hub entries. Omit `--env-file` to use the current shell environment.
 
@@ -186,6 +190,7 @@ Set these variables on the **FastAPI service** in Railway and redeploy. For loca
 | Arize AX | `ARIZE_EVAL_API_KEY` | Optional key for publishing datasets, prompts, and experiments. Defaults to using `ARIZE_API_KEY`. |
 | Arize AX | `ARIZE_PROJECT_NAME` | Trace project name. Defaults to `archgovasst`. |
 | Arize AX | `ARIZE_COLLECTOR_ENDPOINT` | Optional collector endpoint for your Arize deployment |
+| Arize AX | `ARIZE_REGION` | Optional regional SDK endpoint, such as `eu-west-1a`. Match the region of the Arize space. |
 | Performance | `PERFORMANCE_RUN_TOKEN` | Private token for starting dashboard actions. |
 | Chroma Cloud | `CHROMA_API_KEY` | Chroma Cloud API key |
 | Chroma Cloud | `CHROMA_TENANT` | Tenant ID for the database |

@@ -11,6 +11,16 @@ from types import ModuleType
 from .performance import BACKEND_ROOT, report_path, save_report
 
 
+class ApplicationTestResult(unittest.TextTestResult):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.passed_count = 0
+
+    def addSuccess(self, test):
+        super().addSuccess(test)
+        self.passed_count += 1
+
+
 def run_in_subprocess() -> int:
     # Tests patch process-wide globals and environment variables.
     environment = environ.copy()
@@ -35,18 +45,21 @@ def main() -> int:
         modules["backend"] = backend_package
     suite = unittest.defaultTestLoader.discover(str(BACKEND_ROOT / "tests"))
     started = perf_counter()
-    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    result = unittest.TextTestRunner(verbosity=2, resultclass=ApplicationTestResult).run(suite)
     passed = result.testsRun > 0 and result.wasSuccessful()
     problems = [test for test, _ in result.failures + result.errors] + result.unexpectedSuccesses
+    problem_tests = sorted({getattr(test, "test_case", test).id() for test in problems})
     save_report("tests", {
         "passed": passed,
         "tests_run": result.testsRun,
+        "passed_count": result.passed_count,
+        "failed_count": len(problem_tests),
         "failures": len(result.failures),
         "errors": len(result.errors),
         "skipped": len(result.skipped),
         "expected_failures": len(result.expectedFailures),
         "unexpected_successes": len(result.unexpectedSuccesses),
-        "problem_tests": sorted({getattr(test, "test_case", test).id() for test in problems}),
+        "problem_tests": problem_tests,
         "duration_seconds": round(perf_counter() - started, 2),
     })
     return 0 if passed else 1

@@ -3,14 +3,14 @@ from asyncio import sleep, timeout
 from tempfile import TemporaryDirectory
 from threading import Event
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from fastapi.testclient import TestClient
 
 from backend.governance import application, evaluate
 from backend.governance.api import performance
 from backend.governance.application import app
-from backend.governance.evaluation import publish
+from backend.governance.evaluation import experiment, publish
 from backend.governance.evaluation.dataset import DesignCase
 from backend.governance.evaluation.metrics import AnswerKey
 from backend.governance.performance import save_report
@@ -50,7 +50,10 @@ class PerformanceTests(unittest.TestCase):
             side_effect=lambda client, space, template: {"name": template["name"], "prompt_id": template["name"]},
         ))
         self.experiment = self.enterContext(patch.object(
-            evaluate, "run", return_value={"experiment_id": "experiment-id", "case_count": 1},
+            evaluate, "run", return_value=({"case_count": 1, "mean_scores": {"gap_precision": 0.8}}, Mock()),
+        ))
+        self.upload = self.enterContext(patch.object(
+            evaluate, "publish_experiment", return_value=SimpleNamespace(id="experiment-id"),
         ))
         with patch.object(application, "arize_api_key", return_value=""):
             self.client = self.enterContext(TestClient(app))
@@ -83,6 +86,21 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(report.json()["assets"]["status"], "available")
         self.assertEqual(report.json()["benchmark"]["status"], "pending")
         self.assertNotIn("private provider details", report.text + str(logs.output))
+
+    def test_smoke_scores_remain_visible_if_arize_rejects_the_experiment_upload(self):
+        rejected = RuntimeError("private provider details")
+        rejected.status = 422
+        self.upload.side_effect = rejected
+        with self.assertLogs(performance.__name__, level="ERROR"):
+            response = self.client.post("/api/performance/benchmark", headers=self.headers)
+        self.assertEqual(response.status_code, 202)
+
+        result = self.client.get("/api/performance").json()
+        self.assertEqual(result["job"]["phase"], "Publishing the experiment to Arize")
+        self.assertEqual(result["job"]["status"], "failed")
+        self.assertIn("HTTP 422", result["job"]["message"])
+        self.assertEqual(result["benchmark"]["report"]["mean_scores"]["gap_precision"], 0.8)
+        self.assertNotIn("experiment_id", result["benchmark"]["report"])
 
     def test_start_requires_token_and_rejects_an_overlapping_run(self):
         url = "/api/performance/benchmark"
@@ -123,6 +141,24 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(result["job"]["status"], "complete")
         self.assertEqual(result["assets"]["report"]["dataset_id"], "dataset-id")
         self.experiment.assert_not_called()
+
+    def test_auth_check_uses_selected_key_and_a_read_only_dataset_lookup(self):
+        client = self.sdk.return_value
+        client.sdk_config.api_url = "https://api.eu-west-1a.arize.com"
+        rejected = RuntimeError("private Arize response")
+        rejected.status = 401
+        client.datasets.list.side_effect = rejected
+
+        result = publish.check_authentication("test-space", publish.arize_api_key())
+
+        self.sdk.assert_called_once_with(api_key="evaluation-key")
+        client.datasets.list.assert_called_once_with(space="test-space", limit=1)
+        client.datasets.create.assert_not_called()
+        self.assertEqual(result["api_host"], "api.eu-west-1a.arize.com")
+        self.assertEqual(result["key_variable"], "ARIZE_EVAL_API_KEY")
+        self.assertEqual(result["http_status"], 401)
+        self.assertNotIn("private Arize response", str(result))
+        self.assertNotIn("evaluation-key", str(result))
 
     def test_publish_action_reports_arize_permission_error_and_keeps_partial_results(self):
         denied = RuntimeError("private Arize response")
@@ -222,3 +258,28 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["arize_publication"]["status"], "failed")
         self.assertNotIn("private API detail", response.text + str(logs.output))
+
+
+class ExperimentUploadTests(unittest.TestCase):
+    def test_upload_selects_only_documented_task_and_evaluator_fields(self):
+        client = Mock()
+        results = MagicMock()
+        types = SimpleNamespace(
+            EvaluationResultFieldNames=SimpleNamespace,
+            ExperimentTaskFieldNames=SimpleNamespace,
+        )
+        with patch.dict("sys.modules", {"arize.experiments.types": types}):
+            experiment.publish_experiment(client, {
+                "dataset_id": "dataset-id", "experiment_name": "smoke",
+            }, results)
+
+        arguments = client.experiments.create.call_args.kwargs
+        row_selector, columns = results.loc.__getitem__.call_args.args[0]
+        self.assertEqual(row_selector, slice(None))
+        self.assertEqual(columns[:2], ["example_id", "output"])
+        self.assertEqual(set(columns[2:]), {
+            f"eval.{metric}.{field}" for metric in experiment.METRICS for field in ("score", "label")
+        })
+        self.assertIs(arguments["experiment_runs"], results.loc.__getitem__.return_value)
+        self.assertEqual(arguments["dataset"], "dataset-id")
+        self.assertEqual(set(arguments["evaluator_columns"]), set(experiment.METRICS))

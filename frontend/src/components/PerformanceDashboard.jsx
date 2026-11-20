@@ -82,8 +82,13 @@ function MetricTiles({ report }) {
   );
 }
 
+function matchesAnswerKey(item) {
+  return item.expected_tier === item.assessed_tier && item.missed_gaps === 0 && item.unexpected_gaps === 0;
+}
+
 function Benchmark({ entry }) {
   const report = entry.report;
+  const designsPassed = report?.cases.filter(matchesAnswerKey).length;
   return (
     <section className="performance-panel">
       <div className="performance-panel-header">
@@ -97,9 +102,14 @@ function Benchmark({ entry }) {
       {report && (
         <dl className="performance-stats">
           <Stat label="Designs evaluated" value={`${report.case_count} of ${report.available_case_count}`} />
+          <Stat label="Designs passed" value={designsPassed} />
+          <Stat label="Designs failed" value={report.cases.length - designsPassed} />
           <Stat label="Model" value={report.model} />
           <Stat label="Retrieval mode" value={report.retrieval_mode === 'full_document' ? 'Full document' : 'Passages'} />
         </dl>
+      )}
+      {report && (
+        <p className="performance-caption">A design passes when its evidence gaps and assessed risk tier match the answer key.</p>
       )}
       <MetricTiles report={report} />
       {report && (
@@ -108,6 +118,7 @@ function Benchmark({ entry }) {
             <caption>Results by design</caption>
             <thead><tr>
               <th scope="col">Design</th>
+              <th scope="col">Result</th>
               <th scope="col">Expected risk</th>
               <th scope="col">Assessed risk</th>
               <th scope="col">Missed gaps</th>
@@ -118,6 +129,9 @@ function Benchmark({ entry }) {
               {report.cases.map(item => (
                 <tr key={item.id}>
                   <th scope="row">{item.id}</th>
+                  <td>{matchesAnswerKey(item)
+                    ? <span className="status-badge" data-status="Passed">Passed</span>
+                    : <span className="status-badge" data-status="Rejected">Failed</span>}</td>
                   <td className="performance-tier">{item.expected_tier}</td>
                   <td className="performance-tier" data-discrepancy={item.expected_tier !== item.assessed_tier}>{item.assessed_tier}</td>
                   <td data-discrepancy={item.missed_gaps > 0}>{item.missed_gaps}</td>
@@ -164,10 +178,10 @@ function ArizeAssets({ assets, benchmark, publication }) {
             {prompt.name}<code>Prompt {prompt.prompt_id} · Version {prompt.version_id}</code>
           </li>)}</ul>
         ) : 'No prompt publication recorded'} />
-        <Stat label="Latest experiment" value={experiment ? (
+        <Stat label="Latest experiment" value={experiment?.experiment_id ? (
           <>{experiment.experiment_name}<code>{experiment.experiment_id}</code>
             {dataset?.dataset_id !== experiment.dataset_id && <code>Dataset {experiment.dataset_id}</code>}</>
-        ) : 'No completed benchmark recorded'} />
+        ) : experiment ? 'Benchmark scores saved. Arize experiment ID unavailable.' : 'No completed benchmark recorded'} />
       </dl>
     </section>
   );
@@ -181,6 +195,8 @@ function ApplicationTests({ report }) {
       </span>
       <dl className="performance-stats">
         <Stat label="Tests run" value={report.tests_run} />
+        <Stat label="Passed" value={report.passed_count ?? '—'} />
+        <Stat label="Failed" value={report.failed_count ?? report.problem_tests.length} />
         <Stat label="Failures" value={report.failures} />
         <Stat label="Errors" value={report.errors} />
         <Stat label="Skipped" value={report.skipped} />

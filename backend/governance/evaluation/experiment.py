@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 from hashlib import sha256
 from os import getenv
+from threading import Lock
 from time import perf_counter
 
 from ..agent.evidence import extract_evidence_with_llm
@@ -62,19 +63,11 @@ def build_dataset(cases: dict[str, DesignCase], rules: list[dict]):
     return {"name": dataset_name, "examples": examples}
 
 
-def publish_dataset(client, space: str, dataset: dict):
-    name = dataset["name"]
-    datasets = client.datasets.list(space=space, name=name).datasets or []
-    existing = next((item for item in datasets if item.name == name), None)
-    if existing is not None:
-        return existing
-    return client.datasets.create(space=space, force_http=True, **dataset)
-
-
-def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model: str, name: str | None):
+def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model: str, name: str | None, on_phase=None):
     # Keep full reports available to local code evaluators without including quotes in AX outputs.
     reports = {}
     case_results = {}
+    progress_lock = Lock()
 
     def review_design(dataset_row):
         doc_id = dataset_row[INPUT_COLUMN]
@@ -84,7 +77,7 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
         reports[doc_id] = report
         predicted = {row["rule_id"] for row in report["findings"] if row["status"] == "not_evidenced"}
         expected = case.key.not_evidenced_rule_ids
-        case_results[doc_id] = {
+        case_result = {
             "id": doc_id,
             "expected_tier": case.key.risk_tier,
             "assessed_tier": report["risk_tier"],
@@ -92,6 +85,10 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
             "unexpected_gaps": len(predicted - expected),
             "duration_seconds": round(perf_counter() - started, 2),
         }
+        with progress_lock:
+            case_results[doc_id] = case_result
+            if on_phase:
+                on_phase(f"Reviewed {len(case_results)} of {len(cases)} designs")
         return {
             "doc_id": doc_id,
             "risk_tier": report["risk_tier"],
@@ -102,7 +99,9 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
 
     mode = "full_document" if getenv("EVIDENCE_RETRIEVAL_MODE") == "full_document" else "passages"
     experiment_name = name or f"{mode}-{datetime.now(UTC):%Y%m%d-%H%M%S-%f}"
-    experiment, results = client.experiments.run(
+    if on_phase:
+        on_phase(f"Reviewing {len(cases)} designs and scoring results")
+    _, results = client.experiments.run(
         name=experiment_name,
         dataset=dataset.id,
         task=review_design,
@@ -111,6 +110,8 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
         timeout=360,
         exit_on_error=True,
         force_http=True,
+        dry_run=True,
+        dry_run_count=len(cases),
         metadata={"retrieval_mode": mode, "model": model},
     )
     mean_scores = {}
@@ -119,11 +120,31 @@ def run(client, dataset, cases: dict[str, DesignCase], rules: list[dict], model:
         mean_scores[metric] = None if scores.empty else float(scores.mean())
     return {
         "dataset_id": dataset.id,
-        "experiment_id": experiment.id,
         "experiment_name": experiment_name,
         "retrieval_mode": mode,
         "model": model,
         "case_count": len(results),
         "mean_scores": mean_scores,
         "cases": [case_results[doc_id] for doc_id in sorted(case_results)],
-    }
+    }, results
+
+
+def publish_experiment(client, report: dict, results):
+    from arize.experiments.types import EvaluationResultFieldNames, ExperimentTaskFieldNames
+
+    columns = ["example_id", "output"]
+    evaluators = {}
+    for metric in METRICS:
+        score = f"eval.{metric}.score"
+        label = f"eval.{metric}.label"
+        # Pass the documented task and evaluator fields. The runner also returns trace and execution metadata.
+        columns.extend((score, label))
+        evaluators[metric] = EvaluationResultFieldNames(score=score, label=label)
+    return client.experiments.create(
+        name=report["experiment_name"],
+        dataset=report["dataset_id"],
+        experiment_runs=results.loc[:, columns],
+        task_fields=ExperimentTaskFieldNames(example_id="example_id", output="output"),
+        evaluator_columns=evaluators,
+        force_http=True,
+    )

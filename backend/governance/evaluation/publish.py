@@ -7,16 +7,18 @@ from hashlib import sha256
 from logging import getLogger
 from os import getenv
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ..agent.evidence import Extraction, GapGuidance
 from ..agent.prompts import EVIDENCE_EXTRACTION, GAP_GUIDANCE, PASSAGE_EXTRACTION
 from ..performance import save_report
 from .dataset import load_dataset
-from .experiment import build_dataset, publish_dataset
+from .experiment import build_dataset
 from .judge import JUDGE_INSTRUCTIONS, Judgment
 
 logger = getLogger(__name__)
 SAVE_REPORT = "Saving the Arize publication report"
+LIST_DATASETS = "Listing datasets in the configured space"
 
 
 class ArizePublicationError(RuntimeError):
@@ -27,7 +29,10 @@ class ArizePublicationError(RuntimeError):
         self.status = status if isinstance(status, int) and 100 <= status < 600 else None
         hint = {
             400: "Arize rejected the request. Check the configured space and the backend SDK version.",
-            401: "Arize rejected the API key. Check ARIZE_EVAL_API_KEY or ARIZE_API_KEY on the backend.",
+            401: (
+                f"Arize rejected the credential from {arize_key_variable()}. "
+                "Check the deployed key value and confirm the Arize API region matches the space."
+            ),
             403: "Arize denied access. Set ARIZE_EVAL_API_KEY to a key with publishing permissions in the configured space.",
             404: "Arize could not find the resource. Check ARIZE_SPACE_ID and the Arize region.",
             409: "Arize reported a conflict. Retry after any other publication finishes.",
@@ -115,13 +120,39 @@ def publish_prompt(client, space: str, template: dict):
     return {"name": name, "prompt_id": existing.id, "version_id": version.id}
 
 
-def arize_api_key():
-    return getenv("ARIZE_EVAL_API_KEY", "").strip() or getenv("ARIZE_API_KEY", "").strip()
+def arize_key_variable() -> str:
+    return "ARIZE_EVAL_API_KEY" if getenv("ARIZE_EVAL_API_KEY", "").strip() else "ARIZE_API_KEY"
+
+
+def arize_api_key() -> str:
+    return getenv(arize_key_variable(), "").strip()
+
+
+def check_authentication(space: str, api_key: str) -> dict:
+    result = {"key_variable": arize_key_variable()}
+    try:
+        client = connect_arize(api_key)
+        result["api_host"] = urlsplit(client.sdk_config.api_url).hostname
+        with publication_step(LIST_DATASETS, None):
+            client.datasets.list(space=space, limit=1)
+    except ArizePublicationError as exc:
+        return {**result, "ok": False, "http_status": exc.status, "message": str(exc)}
+    return {**result, "ok": True, "message": "Arize accepted the dataset list request."}
+
+
+def publish_dataset(client, space: str, dataset: dict, on_phase=None):
+    name = dataset["name"]
+    with publication_step(LIST_DATASETS, on_phase):
+        datasets = client.datasets.list(space=space, name=name).datasets or []
+    existing = next((item for item in datasets if item.name == name), None)
+    if existing is not None:
+        return existing
+    with publication_step("Creating the dataset", on_phase):
+        return client.datasets.create(space=space, force_http=True, **dataset)
 
 
 def publish_assets(client, space: str, dataset: dict, model: str, on_phase=None):
-    with publication_step("Publishing the dataset", on_phase):
-        published_dataset = publish_dataset(client, space, dataset)
+    published_dataset = publish_dataset(client, space, dataset, on_phase)
     summary = {
         "space_id": space,
         "dataset_name": dataset["name"],
@@ -159,8 +190,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--export", type=Path, help="Write a local JSON bundle without contacting Arize.")
-    mode.add_argument("--env-file", type=Path, help="Load credentials from this file during local publishing.")
+    mode.add_argument("--check-auth", action="store_true", help="Check Arize access with a read-only dataset lookup.")
+    parser.add_argument("--env-file", type=Path, help="Load credentials from this file.")
     args = parser.parse_args()
+    if args.export and args.env_file:
+        parser.error("--export and --env-file cannot be used together.")
 
     if args.env_file:
         from dotenv import load_dotenv
@@ -172,6 +206,11 @@ def main():
     api_key = arize_api_key()
     if not args.export and not (space and api_key):
         parser.error("Set ARIZE_SPACE_ID and an Arize API key or supply --env-file.")
+
+    if args.check_auth:
+        result = check_authentication(space, api_key)
+        print(json.dumps(result, indent=2))
+        return 0 if result["ok"] else 1
 
     if args.export:
         cases, rules = load_dataset()
@@ -186,4 +225,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
