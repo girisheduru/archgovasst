@@ -79,6 +79,10 @@
 .performance-panel-header a { font-size: .85rem; color: #176344; font-weight: 700; }
 .performance-run-form { display: grid; gap: .8rem; }
 .performance-run-form label { display: grid; gap: .2rem; color: #465a62; font-size: .85rem; font-weight: 700; }
+.performance-token-help { margin-top: -.4rem; color: #465a62; font-size: .8rem; }
+.performance-token-help:empty { display: none; }
+.performance-configuration { margin-top: .75rem; color: #465a62; font-size: .85rem; }
+.performance-configuration p { margin: .35rem 0; }
 .performance-run-form :is(select, input) {
   width: 100%;
   min-height: 2.6rem;

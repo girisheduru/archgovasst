@@ -112,7 +112,7 @@ In Arize AX, inspect missed and unexpected rule IDs for each design. Compare gap
 
 ## Performance dashboard
 
-Install the backend requirements and set a private `PERFORMANCE_RUN_TOKEN` on the backend. After restarting the service, enter that token on the **Performance** page to use the dashboard actions.
+Install the backend requirements and set a private `PERFORMANCE_RUN_TOKEN` on the backend. On **Performance**, enter the token once and select an action. Ready buttons accept a click and prompt for the token if the field is empty.
 
 | Dashboard action | API endpoint | Requirements |
 | --- | --- | --- |
@@ -122,6 +122,10 @@ Install the backend requirements and set a private `PERFORMANCE_RUN_TOKEN` on th
 | **Validate benchmark fixtures** | `POST /api/performance/fixtures` | The Excel reader from the backend requirements. Validates the full bundle and saves fixture counts. |
 
 Set `ARIZE_SPACE_ID` and either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY` for publication and benchmarks. The same settings enable startup publication. Both local checks can run without Arize or OpenAI configuration.
+
+On Railway, set the credentials and run token under **FastAPI service → Variables** in the environment that serves your dashboard, then apply the staged changes. FastAPI reads those variables directly at runtime. If the values are shared across services, add the references to the FastAPI service. Set only the public backend URL in the frontend's `VITE_API_BASE_URL` when frontend and API use separate origins. [Railway variables](https://docs.railway.com/variables)
+
+Expand **Backend configuration** on the Performance page to see which settings the connected backend received. The check shows presence only. If the page cannot reach the API, check the frontend URL and CORS guidance displayed on the page.
 
 Each action uses bearer-token authentication. The backend accepts one dashboard action per process at a time. Publishing and benchmarking wait for startup publication to finish. Run the dashboard backend with a single worker and replica so polling and controls share one job state. A process restart ends the in-flight job. Completed reports and IDs saved before a failure remain visible. The page polls `GET /api/performance` while an action or startup publication runs. The response includes per-action availability, `job` and `arize_publication` statuses, and entries for `assets`, `benchmark`, `tests`, and `fixtures`. Each report entry is `pending` before its first report, `available` with a `report` when saved, or `unavailable` if it cannot be read.
 
@@ -177,8 +181,10 @@ Set these variables on the **FastAPI service** in Railway and redeploy. For loca
 | --- | --- | --- |
 | Arize AX | `ARIZE_SPACE_ID` | Space ID from Arize AX Settings → API Keys |
 | Arize AX | `ARIZE_API_KEY` | API key for that space |
+| Arize AX | `ARIZE_EVAL_API_KEY` | Optional key for publishing datasets, prompts, and experiments. Defaults to using `ARIZE_API_KEY`. |
 | Arize AX | `ARIZE_PROJECT_NAME` | Trace project name. Defaults to `archgovasst`. |
 | Arize AX | `ARIZE_COLLECTOR_ENDPOINT` | Optional collector endpoint for your Arize deployment |
+| Performance | `PERFORMANCE_RUN_TOKEN` | Private token for starting dashboard actions. |
 | Chroma Cloud | `CHROMA_API_KEY` | Chroma Cloud API key |
 | Chroma Cloud | `CHROMA_TENANT` | Tenant ID for the database |
 | Chroma Cloud | `CHROMA_DATABASE` | Name of an existing database |

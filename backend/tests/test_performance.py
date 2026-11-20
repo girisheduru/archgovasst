@@ -91,6 +91,27 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(self.client.post(url, headers=self.headers).status_code, 409)
         self.sdk.assert_not_called()
 
+    def test_railway_diagnostics_report_only_configuration_presence(self):
+        with patch.dict("os.environ", {
+            "RAILWAY_SERVICE_ID": "private-service-id",
+            "ARIZE_API_KEY": "",
+            "OPENAI_API_KEY": "",
+        }):
+            response = self.client.get("/api/performance")
+        configuration = response.json()["configuration"]
+        self.assertTrue(configuration["railway"])
+        self.assertEqual(configuration["variables"], {
+            "PERFORMANCE_RUN_TOKEN": True,
+            "ARIZE_SPACE_ID": True,
+            "ARIZE_EVAL_API_KEY": True,
+            "ARIZE_API_KEY": False,
+            "OPENAI_API_KEY": False,
+        })
+        self.assertIsNone(response.json()["actions"]["publish"])
+        self.assertIn("OPENAI_API_KEY", response.json()["actions"]["benchmark"])
+        for value in ("private-service-id", "run-token", "test-space", "evaluation-key"):
+            self.assertNotIn(value, response.text)
+
     def test_publish_action_uses_the_full_dataset_without_running_a_benchmark(self):
         with patch.dict("os.environ", {"OPENAI_API_KEY": ""}):
             response = self.client.post("/api/performance/publish", headers=self.headers)

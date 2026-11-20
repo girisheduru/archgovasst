@@ -1,12 +1,14 @@
 from contextlib import contextmanager
 from contextvars import ContextVar
 from functools import wraps
+from logging import getLogger
 from os import getenv
 
 from langgraph.errors import GraphInterrupt
 from opentelemetry.trace import INVALID_SPAN_CONTEXT, NonRecordingSpan, StatusCode
 
 _review_trace = ContextVar("review_trace", default=None)
+logger = getLogger(__name__)
 
 
 @contextmanager
@@ -69,10 +71,10 @@ def trace_review(tracer, name, review_id):
 def configure_arize():
     space_id = getenv("ARIZE_SPACE_ID", "").strip()
     api_key = getenv("ARIZE_API_KEY", "").strip()
-    if not api_key and (not space_id or getenv("ARIZE_EVAL_API_KEY", "").strip()):
-        return None
     if not space_id or not api_key:
-        raise RuntimeError("Arize AX requires both ARIZE_SPACE_ID and ARIZE_API_KEY.")
+        if api_key or (space_id and not getenv("ARIZE_EVAL_API_KEY", "").strip()):
+            logger.warning("Arize tracing requires both ARIZE_SPACE_ID and ARIZE_API_KEY.")
+        return None
 
     from arize.otel import register
 

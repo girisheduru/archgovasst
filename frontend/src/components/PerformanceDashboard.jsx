@@ -21,6 +21,21 @@ const actions = [
   ['fixtures', 'Validate benchmark fixtures'],
 ];
 
+function BackendConfiguration({ configuration }) {
+  if (!configuration) return null;
+  return (
+    <details className="performance-configuration">
+      <summary>Backend configuration</summary>
+      <p>{configuration.railway ? 'Railway service variables detected.' : 'Railway service variables were not detected.'}</p>
+      <dl className="performance-assets">
+        {Object.entries(configuration.variables).map(([name, configured]) => (
+          <Stat key={name} label={<code>{name}</code>} value={configured ? 'Detected' : 'Missing'} />
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 function RunTime({ timestamp }) {
   return <time dateTime={timestamp}>{dateFormat.format(new Date(timestamp))}</time>;
 }
@@ -200,19 +215,26 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
   useEffect(() => {
     const controller = new AbortController();
     async function load() {
+      const connectionHint = apiBaseUrl
+        ? `Check ${apiBaseUrl} and confirm the backend allows this frontend origin in CORS_ALLOWED_ORIGINS.`
+        : 'Set VITE_API_BASE_URL to the Railway FastAPI HTTPS URL and rebuild the frontend, or route /api to FastAPI.';
       try {
         const response = await fetch(`${apiBaseUrl}/api/performance`, {
           signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]),
-        });
-        if (!response.ok) throw new Error('Performance request failed.');
-        const data = await response.json();
-        if (!data.benchmark || !data.tests || !data.fixtures) throw new Error('Missing reports.');
+        }).catch(() => null);
+        if (!response) throw new Error(`Could not connect to the performance API. ${connectionHint}`);
+        if (response.status === 404) {
+          throw new Error(`The performance API is missing at this address. Check that the latest backend is deployed. ${connectionHint}`);
+        }
+        if (!response.ok) throw new Error(`The performance API returned HTTP ${response.status}. Check the backend deployment logs.`);
+        const data = await response.json().catch(() => null);
+        if (!data?.benchmark || !data.tests || !data.fixtures) {
+          throw new Error(`The request did not return dashboard data. ${connectionHint}`);
+        }
         setReports(data);
         setError('');
-      } catch {
-        if (!controller.signal.aborted) {
-          setError('Could not load the latest performance results. Check that the backend is running and try again.');
-        }
+      } catch (failure) {
+        if (!controller.signal.aborted) setError(failure.message);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -238,6 +260,10 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
 
   async function startAction(event) {
     event.preventDefault();
+    if (!token.trim()) {
+      setRunError('Enter the performance run token configured on the FastAPI backend.');
+      return;
+    }
     const action = event.nativeEvent.submitter?.value || 'benchmark';
     const query = action === 'benchmark' ? `?scope=${scope}` : '';
     setSubmitting(true);
@@ -302,8 +328,12 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
             <form className="performance-run-form" onSubmit={startAction}>
               <label>Performance run token
                 <input required type="password" value={token} autoComplete="off"
+                  aria-describedby="performance-token-help"
                   onChange={event => setToken(event.target.value)} disabled={!availability || Boolean(controlsUnavailable) || busy} />
               </label>
+              <p id="performance-token-help" className="performance-token-help">
+                {controlsUnavailable || (availability && 'Enter the PERFORMANCE_RUN_TOKEN set on the FastAPI backend.')}
+              </p>
               <label>Benchmark scope
                 <select value={scope} onChange={event => setScope(event.target.value)}
                   disabled={!availability || Boolean(controlsUnavailable || availability.benchmark) || busy || isPublishing}>
@@ -321,21 +351,20 @@ export default function PerformanceDashboard({ apiBaseUrl }) {
                     <div key={action}>
                       <button type="submit" value={action}
                         disabled={!availability || Boolean(controlsUnavailable || reason) || busy ||
-                          !token.trim() || (needsArize && isPublishing)}>
+                          (needsArize && isPublishing)}>
                         {label}
                       </button>
-                      {reason && !controlsUnavailable && <small>{reason}</small>}
+                      {reason && <small>{reason}</small>}
                     </div>
                   );
                 })}
               </div>
             </form>
             <p className="performance-caption" role="status">
-              {jobMessage || controlsUnavailable ||
-                (isPublishing ? 'Arize actions are available after startup publication finishes.' :
-                  !loading && !availability && 'Connect to the backend to run these actions.')}
+              {jobMessage || (isPublishing && 'Arize actions are available after startup publication finishes.')}
             </p>
             {runError && <p className="sample-error" role="alert">{runError}</p>}
+            <BackendConfiguration configuration={reports?.configuration} />
           </section>
           <ArizeAssets assets={assets} benchmark={benchmark} publication={publication} />
         </div>

@@ -45,8 +45,19 @@ def missing_dependency(*packages):
 
 def controls_unavailable():
     if not getenv("PERFORMANCE_RUN_TOKEN", "").strip():
-        return "Set PERFORMANCE_RUN_TOKEN on the backend to enable dashboard actions."
+        return "Set PERFORMANCE_RUN_TOKEN on the FastAPI backend and restart or redeploy it."
     return None
+
+
+def configuration_status():
+    names = (
+        "PERFORMANCE_RUN_TOKEN", "ARIZE_SPACE_ID", "ARIZE_EVAL_API_KEY",
+        "ARIZE_API_KEY", "OPENAI_API_KEY",
+    )
+    return {
+        "railway": bool(getenv("RAILWAY_SERVICE_ID")),
+        "variables": {name: bool(getenv(name, "").strip()) for name in names},
+    }
 
 
 def action_availability():
@@ -55,10 +66,8 @@ def action_availability():
         f"Configure {', '.join(benchmark_settings)} on the backend."
         if benchmark_settings else None
     )
-    publish_settings_error = (
-        None if getenv("ARIZE_SPACE_ID", "").strip() and arize_api_key()
-        else "Configure ARIZE_SPACE_ID and an Arize key with publishing access."
-    )
+    publish_settings = [name for name in benchmark_settings if name != "OPENAI_API_KEY"]
+    publish_settings_error = f"Configure {', '.join(publish_settings)} on the backend." if publish_settings else None
     arize_dependencies = missing_dependency("arize", "openpyxl")
     return {
         "benchmark": benchmark_settings_error or arize_dependencies,
@@ -115,6 +124,7 @@ def get_performance(request: Request, response: Response):
         "arize_publication": getattr(request.app.state, "arize_publication", None),
         "actions": actions,
         "controls_unavailable": controls,
+        "configuration": configuration_status(),
         "runner_unavailable": controls or actions["benchmark"],
     }
 
@@ -129,7 +139,7 @@ def start_action(
 ):
     expected = getenv("PERFORMANCE_RUN_TOKEN", "").strip()
     if not expected:
-        raise HTTPException(503, "Dashboard actions are disabled.")
+        raise HTTPException(503, controls_unavailable())
     if not credentials or not compare_digest(credentials.credentials.encode(), expected.encode()):
         raise HTTPException(401, "Enter a valid performance run token.", headers={"WWW-Authenticate": "Bearer"})
     publication = getattr(request.app.state, "arize_publication", None)

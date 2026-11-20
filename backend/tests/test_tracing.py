@@ -13,7 +13,16 @@ from opentelemetry.trace import StatusCode
 
 from backend.governance.application import app
 from backend.governance.agent.evidence import Extraction
-from backend.governance.api.tracing import trace_operation
+from backend.governance.api.tracing import configure_arize, trace_operation
+
+
+class ArizeConfigurationTests(unittest.TestCase):
+    def test_incomplete_tracing_configuration_leaves_tracing_disabled(self):
+        with (
+            patch.dict("os.environ", {"ARIZE_SPACE_ID": "test-space", "ARIZE_API_KEY": "", "ARIZE_EVAL_API_KEY": ""}),
+            self.assertLogs("backend.governance.api.tracing", level="WARNING"),
+        ):
+            self.assertIsNone(configure_arize())
 
 
 class ReviewTracingTests(unittest.TestCase):
