@@ -124,6 +124,35 @@ class PerformanceTests(unittest.TestCase):
         self.assertEqual(result["assets"]["report"]["dataset_id"], "dataset-id")
         self.experiment.assert_not_called()
 
+    def test_publish_action_reports_arize_permission_error_and_keeps_partial_results(self):
+        denied = RuntimeError("private Arize response")
+        denied.status = 403
+        self.prompt.side_effect = [{"name": "first-template"}, denied]
+        with self.assertLogs(performance.__name__, level="ERROR") as logs:
+            response = self.client.post("/api/performance/publish", headers=self.headers)
+        self.assertEqual(response.status_code, 202)
+        response = self.client.get("/api/performance")
+        result = response.json()
+        self.assertEqual(result["job"]["status"], "failed")
+        self.assertIn("governance-passage-extraction", result["job"]["message"])
+        self.assertIn("HTTP 403", result["job"]["message"])
+        self.assertIn("ARIZE_EVAL_API_KEY", result["job"]["message"])
+        self.assertEqual(result["assets"]["report"]["prompts"], [{"name": "first-template"}])
+        self.assertNotIn("private Arize response", response.text + str(logs.output))
+
+    def test_publish_action_finishes_arize_calls_before_saving_the_report(self):
+        with (
+            patch.object(publish, "save_report", side_effect=PermissionError("private storage path")),
+            self.assertLogs(performance.__name__, level="ERROR"),
+        ):
+            response = self.client.post("/api/performance/publish", headers=self.headers)
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(self.prompt.call_count, 4)
+        result = self.client.get("/api/performance").json()
+        self.assertEqual(result["job"]["status"], "failed")
+        self.assertIn("Arize assets were published", result["job"]["message"])
+        self.assertIn("PERFORMANCE_REPORT_DIR", result["job"]["message"])
+
     def test_fixture_and_application_checks_work_without_service_credentials(self):
         def failing_tests():
             save_report("tests", {"passed": False, "tests_run": 1, "failures": 1})

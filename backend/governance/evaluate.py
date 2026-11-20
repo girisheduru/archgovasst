@@ -13,7 +13,7 @@ from .evaluation.dataset import load_dataset
 from .evaluation.experiment import build_dataset, run
 from .evaluation.judge import judge
 from .evaluation.metrics import AnswerKey, evaluate
-from .evaluation.publish import arize_api_key, publish_assets
+from .evaluation.publish import arize_api_key, connect_arize, publish_assets
 from .performance import save_report
 from .standards_store.catalog import load_rules
 
@@ -50,13 +50,9 @@ def fixture_summary(cases, rules):
 
 
 def run_benchmark(cases, rules, available_case_count, name=None, on_phase: Callable[[str], None] | None = None):
-    from arize import ArizeClient
-
     space = getenv("ARIZE_SPACE_ID", "").strip()
     model = getenv("OPENAI_MODEL", "gpt-6-luna")
-    if on_phase:
-        on_phase("Connecting to Arize AX")
-    client = ArizeClient(api_key=arize_api_key())
+    client = connect_arize(arize_api_key(), on_phase)
     dataset, assets = publish_assets(client, space, build_dataset(cases, rules), model, on_phase=on_phase)
     if on_phase:
         on_phase("Running AI evaluation and publishing experiment")

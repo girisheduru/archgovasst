@@ -137,6 +137,8 @@ On Railway with `/backend` as the service root, redeploy with the updated `requi
 
 When the backend starts with Arize credentials, it publishes or reuses the full benchmark dataset and four Prompt Hub templates in the background. The dashboard displays progress and records publication IDs. A publishing error appears in the dashboard and backend logs while the application continues serving requests. Startup uses the bundled design IDs, answer labels, and prompt templates. OpenAI calls and experiment creation occur when a benchmark is run.
 
+For a publishing failure, the dashboard identifies the failed step and shows the Arize HTTP status when available. HTTP 401 indicates that Arize rejected the configured key. For HTTP 403, check the publishing key's permissions in the destination space. If the dashboard says Arize assets were published and the report could not be saved, check that `PERFORMANCE_REPORT_DIR` is writable by the FastAPI process. The publishing requests finish before the dashboard saves the report. [Arize service key permissions](https://arize.com/docs/ax/security-and-settings/service-keys)
+
 To publish the same assets outside the running application, run the publisher from the clone root with the evaluation dependencies installed. The environment file supplies `ARIZE_SPACE_ID` and either `ARIZE_EVAL_API_KEY` or `ARIZE_API_KEY`. It can also set `OPENAI_MODEL` for the Prompt Hub entries. Omit `--env-file` to use the current shell environment.
 
 ```sh

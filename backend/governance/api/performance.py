@@ -10,7 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from ..evaluate import fixture_summary, missing_benchmark_settings, run_benchmark
 from ..evaluation.dataset import load_dataset
-from ..evaluation.publish import arize_api_key, publish_bundled_assets
+from ..evaluation.publish import ArizePublicationError, arize_api_key, publish_bundled_assets
 from ..performance import read_report, save_report
 from ..run_application_tests import run_in_subprocess
 
@@ -85,7 +85,10 @@ def update_job(status: str, phase: str, message: str | None = None):
 def run_job(action: Action, scope: Literal["smoke", "full"]):
     try:
         if action == "publish":
-            publish_bundled_assets(getenv("ARIZE_SPACE_ID", "").strip(), arize_api_key())
+            publish_bundled_assets(
+                getenv("ARIZE_SPACE_ID", "").strip(), arize_api_key(),
+                on_phase=lambda phase: update_job("running", phase),
+            )
         elif action == "tests":
             if run_in_subprocess() != 0:
                 update_job("failed", PHASES[action], "Application tests did not pass. Check the test results and backend logs.")
@@ -99,6 +102,9 @@ def run_job(action: Action, scope: Literal["smoke", "full"]):
                     case_id = min(cases)
                     cases = {case_id: cases[case_id]}
                 run_benchmark(cases, rules, available_case_count, on_phase=lambda phase: update_job("running", phase))
+    except ArizePublicationError as exc:
+        logger.error("Arize publication failed during %s (%s, status %s).", exc.phase, exc.error_type, exc.status)
+        update_job("failed", exc.phase, str(exc))
     except Exception as exc:
         phase = job["phase"]
         status = getattr(exc, "status", getattr(exc, "status_code", None))

@@ -2,7 +2,9 @@
 
 import argparse
 import json
+from contextlib import contextmanager
 from hashlib import sha256
+from logging import getLogger
 from os import getenv
 from pathlib import Path
 
@@ -12,6 +14,55 @@ from ..performance import save_report
 from .dataset import load_dataset
 from .experiment import build_dataset, publish_dataset
 from .judge import JUDGE_INSTRUCTIONS, Judgment
+
+logger = getLogger(__name__)
+SAVE_REPORT = "Saving the Arize publication report"
+
+
+class ArizePublicationError(RuntimeError):
+    def __init__(self, phase: str, cause: Exception):
+        self.phase = phase
+        self.error_type = type(cause).__name__
+        status = getattr(cause, "status", None) or getattr(cause, "status_code", None)
+        self.status = status if isinstance(status, int) and 100 <= status < 600 else None
+        hint = {
+            400: "Arize rejected the request. Check the configured space and the backend SDK version.",
+            401: "Arize rejected the API key. Check ARIZE_EVAL_API_KEY or ARIZE_API_KEY on the backend.",
+            403: "Arize denied access. Set ARIZE_EVAL_API_KEY to a key with publishing permissions in the configured space.",
+            404: "Arize could not find the resource. Check ARIZE_SPACE_ID and the Arize region.",
+            409: "Arize reported a conflict. Retry after any other publication finishes.",
+            422: "Arize rejected the request. Check the configured space and the backend SDK version.",
+            429: "Arize rate limited the request. Try again shortly.",
+        }.get(self.status, "Check the backend logs.")
+        if phase == SAVE_REPORT:
+            message = "Arize assets were published. Set PERFORMANCE_REPORT_DIR to a directory the backend can write to so the dashboard can display the IDs."
+        else:
+            if isinstance(cause, ImportError):
+                hint = "Install the backend requirements and redeploy."
+            elif phase == "Loading bundled benchmark fixtures":
+                hint = "Check that the deployment includes backend/datadocs and run Validate benchmark fixtures."
+            elif self.error_type in ("NotFoundError", "AmbiguousNameError"):
+                hint = "Check ARIZE_SPACE_ID, the Arize region, and the API key's access to that space."
+            status = f" (HTTP {self.status})" if self.status else ""
+            message = f"Failed while {phase[:1].lower() + phase[1:]}{status}. {hint}"
+        super().__init__(message)
+
+
+@contextmanager
+def publication_step(phase: str, on_phase):
+    if on_phase:
+        on_phase(phase)
+    try:
+        yield
+    except Exception as exc:
+        raise ArizePublicationError(phase, exc) from exc
+
+
+def connect_arize(api_key: str, on_phase=None):
+    with publication_step("Initializing the Arize AX client", on_phase):
+        from arize import ArizeClient
+
+        return ArizeClient(api_key=api_key)
 
 
 def build_prompts(model: str):
@@ -69,31 +120,38 @@ def arize_api_key():
 
 
 def publish_assets(client, space: str, dataset: dict, model: str, on_phase=None):
-    if on_phase:
-        on_phase("Publishing dataset")
-    published_dataset = publish_dataset(client, space, dataset)
+    with publication_step("Publishing the dataset", on_phase):
+        published_dataset = publish_dataset(client, space, dataset)
     summary = {
         "space_id": space,
         "dataset_name": dataset["name"],
         "dataset_id": published_dataset.id,
         "prompts": [],
     }
-    save_report("assets", summary)
-    if on_phase:
-        on_phase("Publishing Prompt Hub templates")
-    for template in build_prompts(model):
-        summary["prompts"].append(publish_prompt(client, space, template))
+    try:
+        with publication_step("Preparing the Prompt Hub templates", on_phase):
+            templates = build_prompts(model)
+        for template in templates:
+            with publication_step(f"Publishing Prompt Hub template {template['name']}", on_phase):
+                summary["prompts"].append(publish_prompt(client, space, template))
+    except ArizePublicationError:
+        try:
+            save_report("assets", summary)
+        except OSError as exc:
+            logger.warning("Could not save the partial Arize publication report (%s).", type(exc).__name__)
+        raise
+    with publication_step(SAVE_REPORT, on_phase):
         save_report("assets", summary)
     return published_dataset, summary
 
 
-def publish_bundled_assets(space: str, api_key: str):
-    from arize import ArizeClient
-
-    cases, rules = load_dataset()
-    dataset = build_dataset(cases, rules)
+def publish_bundled_assets(space: str, api_key: str, on_phase=None):
+    with publication_step("Loading bundled benchmark fixtures", on_phase):
+        cases, rules = load_dataset()
+        dataset = build_dataset(cases, rules)
     model = getenv("OPENAI_MODEL", "gpt-6-luna")
-    _, summary = publish_assets(ArizeClient(api_key=api_key), space, dataset, model)
+    client = connect_arize(api_key, on_phase)
+    _, summary = publish_assets(client, space, dataset, model, on_phase=on_phase)
     return summary
 
 

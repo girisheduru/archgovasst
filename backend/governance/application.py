@@ -12,7 +12,7 @@ from starlette.concurrency import run_in_threadpool
 from .agent.graph import compile_workflow
 from .api import document_reviews, performance, sample_reviews, standards_import
 from .api.tracing import configure_arize
-from .evaluation.publish import arize_api_key, publish_bundled_assets
+from .evaluation.publish import ArizePublicationError, arize_api_key, publish_bundled_assets
 
 logger = getLogger(__name__)
 
@@ -20,12 +20,9 @@ logger = getLogger(__name__)
 async def publish_startup_assets(app: FastAPI, space: str, api_key: str):
     try:
         summary = await run_in_threadpool(publish_bundled_assets, space, api_key)
-    except ImportError:
-        app.state.arize_publication = {
-            "status": "failed",
-            "message": "Install the backend requirements to publish startup assets.",
-        }
-        logger.warning("Arize startup publication could not load its dependencies.")
+    except ArizePublicationError as exc:
+        app.state.arize_publication = {"status": "failed", "message": str(exc)}
+        logger.warning("Arize startup publication failed during %s (%s, status %s).", exc.phase, exc.error_type, exc.status)
     except Exception as exc:
         app.state.arize_publication = {
             "status": "failed",
